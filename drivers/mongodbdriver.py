@@ -838,8 +838,7 @@ class MongodbDriver(AbstractDriver):
                 return (True, txn_callback(session, params))
             except pymongo.errors.OperationFailure as exc:
                 if exc.code in (112, 244):  # WriteConflict, TransactionAborted
-                    if logging.debug:
-                        print "OperationFailure with error code: %d during operation: %s" % (exc.code, name)
+                    logging.debug("OperationFailure with error code: %d during operation: %s" % (exc.code, name))
                     session.abort_transaction()
                     return (False, None)
                 print "Failed with unknown OperationFailure: %d" % exc.code
@@ -855,12 +854,11 @@ class MongodbDriver(AbstractDriver):
             while True:
                 (ok, value) = self.run_transaction(client, txn_callback, s, name, params)
                 if ok:
-                    if txn_counter > 0 and logging.debug:
-                        print "Committed operation %s after %d retries" % (name, txn_counter)
+                    if txn_counter > 0:
+                        logging.debug("Committed operation %s after %d retries" % (name, txn_counter))
                     return value
                 # TODO: should we backoff a little bit before retry?
                 txn_counter += 1
                 sleep(txn_counter * .1)
-                if logging.debug:
-                    print "txn retry number for %s: %d" % (name, txn_counter)
+                logging.debug("txn retry number for %s: %d" % (name, txn_counter))
 ## CLASS
