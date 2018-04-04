@@ -370,77 +370,75 @@ class MongodbDriver(AbstractDriver):
         o_carrier_id = params["o_carrier_id"]
         ol_delivery_d = params["ol_delivery_d"]
 
-        with self.client.start_session(auto_start_transaction=True) as s:
-            result = [ ]
-            for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):
-                ## getNewOrder
-                no = self.new_order.find_one({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s)
-                if no == None:
-                    ## No orders for this district: skip it. Note: This must be reported if > 1%
-                    continue
-                assert len(no) > 0
-                o_id = no["NO_O_ID"]
+        result = [ ]
+        for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):
+            ## getNewOrder
+            no = self.new_order.find_one({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s)
+            if no == None:
+                ## No orders for this district: skip it. Note: This must be reported if > 1%
+                continue
+            assert len(no) > 0
+            o_id = no["NO_O_ID"]
 
-                if self.denormalize:
-                    ## getCId
-                    c = self.customer.find_one({"ORDERS.O_ID": o_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_ID": 1, "ORDERS.O_ID": 1, "ORDERS.ORDER_LINE": 1}, session=s)
-                    assert c != None, "No customer record [O_ID=%d, D_ID=%d, W_ID=%d]" % (o_id, d_id, w_id)
-                    c_id = c["C_ID"]
+            if self.denormalize:
+                ## getCId
+                c = self.customer.find_one({"ORDERS.O_ID": o_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_ID": 1, "ORDERS.O_ID": 1, "ORDERS.ORDER_LINE": 1}, session=s)
+                assert c != None, "No customer record [O_ID=%d, D_ID=%d, W_ID=%d]" % (o_id, d_id, w_id)
+                c_id = c["C_ID"]
 
-                    ## sumOLAmount + updateOrderLine
-                    ol_total = 0
-                    for o in c["ORDERS"]:
-                        if o["O_ID"] == o_id:
-                            orderLines = o["ORDER_LINE"]
-                            for ol in orderLines:
-                                ol_total += ol["OL_AMOUNT"]
-                                ## We have to do this here because we can't update the nested array atomically
-                                ol["OL_DELIVERY_D"] = ol_delivery_d
-                            break
-                    ## FOR
+                ## sumOLAmount + updateOrderLine
+                ol_total = 0
+                for o in c["ORDERS"]:
+                    if o["O_ID"] == o_id:
+                        orderLines = o["ORDER_LINE"]
+                        for ol in orderLines:
+                            ol_total += ol["OL_AMOUNT"]
+                            ## We have to do this here because we can't update the nested array atomically
+                            ol["OL_DELIVERY_D"] = ol_delivery_d
+                        break
+                ## FOR
 
-                    if ol_total == 0:
-                        pprint(params)
-                        pprint(no)
-                        pprint(c)
-                        sys.exit(1)
+                if ol_total == 0:
+                    pprint(params)
+                    pprint(no)
+                    pprint(c)
+                    sys.exit(1)
 
-                    ## updateOrders + updateCustomer
-                    self.customer.update_one({"_id": c['_id'], "ORDERS.O_ID": o_id}, {"$set": {"ORDERS.$.O_CARRIER_ID": o_carrier_id, "ORDERS.$.ORDER_LINE": orderLines}, "$inc": {"C_BALANCE": ol_total}}, session=s)
+                ## updateOrders + updateCustomer
+                self.customer.update_one({"_id": c['_id'], "ORDERS.O_ID": o_id}, {"$set": {"ORDERS.$.O_CARRIER_ID": o_carrier_id, "ORDERS.$.ORDER_LINE": orderLines}, "$inc": {"C_BALANCE": ol_total}}, session=s)
 
-                else:
-                    ## getCId
-                    o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"O_C_ID": 1}, session=s)
-                    assert o != None
-                    c_id = o["O_C_ID"]
+            else:
+                ## getCId
+                o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"O_C_ID": 1}, session=s)
+                assert o != None
+                c_id = o["O_C_ID"]
 
-                    ## sumOLAmount
-                    orderLines = self.order_line.find({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"OL_AMOUNT": 1}, session=s)
-                    assert orderLines != None
-                    ol_total = sum([ol["OL_AMOUNT"] for ol in orderLines])
+                ## sumOLAmount
+                orderLines = self.order_line.find({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"OL_AMOUNT": 1}, session=s)
+                assert orderLines != None
+                ol_total = sum([ol["OL_AMOUNT"] for ol in orderLines])
 
-                    ## updateOrders
-                    self.orders.update_one(o, {"$set": {"O_CARRIER_ID": o_carrier_id}}, session=s)
+                ## updateOrders
+                self.orders.update_one(o, {"$set": {"O_CARRIER_ID": o_carrier_id}}, session=s)
 
-                    ## updateOrderLine
-                    self.order_line.update_one({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"$set": {"OL_DELIVERY_D": ol_delivery_d}}, session=s)
+                ## updateOrderLine
+                self.order_line.update_one({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"$set": {"OL_DELIVERY_D": ol_delivery_d}}, session=s)
 
-                    ## updateCustomer
-                    self.customer.update_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"$inc": {"C_BALANCE": ol_total}}, session=s)
-                ## IF
+                ## updateCustomer
+                self.customer.update_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"$inc": {"C_BALANCE": ol_total}}, session=s)
+            ## IF
 
-                ## deleteNewOrder
-                self.new_order.delete_one({"_id": no['_id']}, session=s)
+            ## deleteNewOrder
+            self.new_order.delete_one({"_id": no['_id']}, session=s)
 
-                # These must be logged in the "result file" according to TPC-C 2.7.2.2 (page 39)
-                # We remove the queued time, completed time, w_id, and o_carrier_id: the client can figure
-                # them out
-                # If there are no order lines, SUM returns null. There should always be order lines.
-                assert ol_total != None, "ol_total is NULL: there are no order lines. This should not happen"
-                assert ol_total > 0.0
+            # These must be logged in the "result file" according to TPC-C 2.7.2.2 (page 39)
+            # We remove the queued time, completed time, w_id, and o_carrier_id: the client can figure
+            # them out
+            # If there are no order lines, SUM returns null. There should always be order lines.
+            assert ol_total != None, "ol_total is NULL: there are no order lines. This should not happen"
+            assert ol_total > 0.0
 
-                result.append((d_id, o_id))
-            s.commit_transaction()
+            result.append((d_id, o_id))
         ## FOR
         return result
 
@@ -467,156 +465,153 @@ class MongodbDriver(AbstractDriver):
         ## http://stackoverflow.com/q/3844931/
         all_local = (not i_w_ids or [w_id] * len(i_w_ids) == i_w_ids)
 
-        with self.client.start_session(auto_start_transaction=True) as s:
-            items = self.item.find({"I_ID": {"$in": i_ids}}, {"I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1}, session=s)
-            ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
-            ## Note that this will happen with 1% of transactions on purpose.
-            if items.count() != len(i_ids):
-                ## TODO Abort here!
-                return
-            ## IF
+        items = self.item.find({"I_ID": {"$in": i_ids}}, {"I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1}, session=s)
+        ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
+        ## Note that this will happen with 1% of transactions on purpose.
+        if items.count() != len(i_ids):
+            ## TODO Abort here!
+            return
+        ## IF
 
-            ## ----------------
-            ## Collect Information from WAREHOUSE, DISTRICT, and CUSTOMER
-            ## ----------------
+        ## ----------------
+        ## Collect Information from WAREHOUSE, DISTRICT, and CUSTOMER
+        ## ----------------
 
-            # getWarehouseTaxRate
-            w = self.warehouse.find_one({"W_ID": w_id}, {"W_TAX": 1}, session=s)
-            assert w
-            w_tax = w["W_TAX"]
+        # getWarehouseTaxRate
+        w = self.warehouse.find_one({"W_ID": w_id}, {"W_TAX": 1}, session=s)
+        assert w
+        w_tax = w["W_TAX"]
 
-            # getDistrict
-            d = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id}, {"D_TAX": 1, "D_NEXT_O_ID": 1}, session=s)
-            assert d
-            d_tax = d["D_TAX"]
-            d_next_o_id = d["D_NEXT_O_ID"]
+        # getDistrict
+        d = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id}, {"D_TAX": 1, "D_NEXT_O_ID": 1}, session=s)
+        assert d
+        d_tax = d["D_TAX"]
+        d_next_o_id = d["D_NEXT_O_ID"]
 
-            # incrementNextOrderId
-            # HACK: This is not transactionally safe!
-            self.district.update_one(d, {"$inc": {"D_NEXT_O_ID": 1}}, session=s)
+        # incrementNextOrderId
+        # HACK: This is not transactionally safe!
+        self.district.update_one(d, {"$inc": {"D_NEXT_O_ID": 1}}, session=s)
 
-            # getCustomer
-            c = self.customer.find_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_DISCOUNT": 1, "C_LAST": 1, "C_CREDIT": 1}, session=s)
-            assert c
-            c_discount = c["C_DISCOUNT"]
+        # getCustomer
+        c = self.customer.find_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_DISCOUNT": 1, "C_LAST": 1, "C_CREDIT": 1}, session=s)
+        assert c
+        c_discount = c["C_DISCOUNT"]
 
-            ## ----------------
-            ## Insert Order Information
-            ## ----------------
-            ol_cnt = len(i_ids)
-            o_carrier_id = constants.NULL_CARRIER_ID
+        ## ----------------
+        ## Insert Order Information
+        ## ----------------
+        ol_cnt = len(i_ids)
+        o_carrier_id = constants.NULL_CARRIER_ID
 
-            # createNewOrder
-            self.new_order.insert_one({"NO_O_ID": d_next_o_id, "NO_D_ID": d_id, "NO_W_ID": w_id}, session=s)
+        # createNewOrder
+        self.new_order.insert_one({"NO_O_ID": d_next_o_id, "NO_D_ID": d_id, "NO_W_ID": w_id}, session=s)
 
-            o = {"O_ID": d_next_o_id, "O_ENTRY_D": o_entry_d, "O_CARRIER_ID": o_carrier_id, "O_OL_CNT": ol_cnt, "O_ALL_LOCAL": all_local}
-            if self.denormalize:
-                o[constants.TABLENAME_ORDER_LINE] = [ ]
-            else:
-                o["O_D_ID"] = d_id
-                o["O_W_ID"] = w_id
-                o["O_C_ID"] = c_id
-
-                # createOrder
-                self.orders.insert_many(o, session=s)
-
-            ## ----------------
-            ## OPTIMIZATION:
-            ## If all of the items are at the same warehouse, then we'll issue a single
-            ## request to get their information
-            ## ----------------
-            stockInfos = None
-            if all_local and False:
-                # getStockInfo
-                allStocks = self.stock.find({"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
-                assert allStocks.count() == ol_cnt
-                stockInfos = { }
-                for si in allStocks:
-                    stockInfos["S_I_ID"] = si # HACK
-            ## IF
-
-            ## ----------------
-            ## Insert Order Item Information
-            ## ----------------
-            item_data = [ ]
-            total = 0
-            for i in range(ol_cnt):
-                ol_number = i + 1
-                ol_supply_w_id = i_w_ids[i]
-                ol_i_id = i_ids[i]
-                ol_quantity = i_qtys[i]
-
-                itemInfo = items[i]
-                i_name = itemInfo["I_NAME"]
-                i_data = itemInfo["I_DATA"]
-                i_price = itemInfo["I_PRICE"]
-
-                # getStockInfo
-                if all_local and stockInfos != None:
-                    si = stockInfos[ol_i_id]
-                    assert si["S_I_ID"] == ol_i_id, "S_I_ID should be %d\n%s" % (ol_i_id, pformat(si))
-                else:
-                    si = self.stock.find_one({"S_I_ID": ol_i_id, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
-                assert si, "Failed to find S_I_ID: %d\n%s" % (ol_i_id, pformat(itemInfo))
-
-                s_quantity = si["S_QUANTITY"]
-                s_ytd = si["S_YTD"]
-                s_order_cnt = si["S_ORDER_CNT"]
-                s_remote_cnt = si["S_REMOTE_CNT"]
-                s_data = si["S_DATA"]
-                s_dist_xx = si[s_dist_col] # Fetches data from the s_dist_[d_id] column
-
-                ## Update stock
-                s_ytd += ol_quantity
-                if s_quantity >= ol_quantity + 10:
-                    s_quantity = s_quantity - ol_quantity
-                else:
-                    s_quantity = s_quantity + 91 - ol_quantity
-                s_order_cnt += 1
-
-                if ol_supply_w_id != w_id: s_remote_cnt += 1
-
-                # updateStock
-                self.stock.update_one(si, {"$set": {"S_QUANTITY": s_quantity, "S_YTD": s_ytd, "S_ORDER_CNT": s_order_cnt, "S_REMOTE_CNT": s_remote_cnt}}, session=s)
-
-                if i_data.find(constants.ORIGINAL_STRING) != -1 and s_data.find(constants.ORIGINAL_STRING) != -1:
-                    brand_generic = 'B'
-                else:
-                    brand_generic = 'G'
-                ## Transaction profile states to use "ol_quantity * i_price"
-                ol_amount = ol_quantity * i_price
-                total += ol_amount
-
-                ol = {"OL_O_ID": d_next_o_id, "OL_NUMBER": ol_number, "OL_I_ID": ol_i_id, "OL_SUPPLY_W_ID": ol_supply_w_id, "OL_DELIVERY_D": o_entry_d, "OL_QUANTITY": ol_quantity, "OL_AMOUNT": ol_amount, "OL_DIST_INFO": s_dist_xx}
-
-                if self.denormalize:
-                    # createOrderLine
-                    o[constants.TABLENAME_ORDER_LINE].append(ol)
-                else:
-                    ol["OL_D_ID"] = d_id
-                    ol["OL_W_ID"] = w_id
-
-                    # createOrderLine
-                    self.order_line.insert(ol, session=s)
-                ## IF
-
-                ## Add the info to be returned
-                item_data.append( (i_name, s_quantity, brand_generic, i_price, ol_amount) )
-            ## FOR
-
-            ## Adjust the total for the discount
-            #print "c_discount:", c_discount, type(c_discount)
-            #print "w_tax:", w_tax, type(w_tax)
-            #print "d_tax:", d_tax, type(d_tax)
-            total *= (1 - c_discount) * (1 + w_tax + d_tax)
+        o = {"O_ID": d_next_o_id, "O_ENTRY_D": o_entry_d, "O_CARRIER_ID": o_carrier_id, "O_OL_CNT": ol_cnt, "O_ALL_LOCAL": all_local}
+        if self.denormalize:
+            o[constants.TABLENAME_ORDER_LINE] = [ ]
+        else:
+            o["O_D_ID"] = d_id
+            o["O_W_ID"] = w_id
+            o["O_C_ID"] = c_id
 
             # createOrder
-            self.customer.update_one({"_id": c["_id"]}, {"$push": {"ORDERS": o}}, session=s)
+            self.orders.insert_many(o, session=s)
 
-            ## Pack up values the client is missing (see TPC-C 2.4.3.5)
-            misc = [ (w_tax, d_tax, d_next_o_id, total) ]
-            s.commit_transaction()
+        ## ----------------
+        ## OPTIMIZATION:
+        ## If all of the items are at the same warehouse, then we'll issue a single
+        ## request to get their information
+        ## ----------------
+        stockInfos = None
+        if all_local and False:
+            # getStockInfo
+            allStocks = self.stock.find({"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
+            assert allStocks.count() == ol_cnt
+            stockInfos = { }
+            for si in allStocks:
+                stockInfos["S_I_ID"] = si # HACK
+        ## IF
 
+        ## ----------------
+        ## Insert Order Item Information
+        ## ----------------
+        item_data = [ ]
+        total = 0
+        for i in range(ol_cnt):
+            ol_number = i + 1
+            ol_supply_w_id = i_w_ids[i]
+            ol_i_id = i_ids[i]
+            ol_quantity = i_qtys[i]
+
+            itemInfo = items[i]
+            i_name = itemInfo["I_NAME"]
+            i_data = itemInfo["I_DATA"]
+            i_price = itemInfo["I_PRICE"]
+
+            # getStockInfo
+            if all_local and stockInfos != None:
+                si = stockInfos[ol_i_id]
+                assert si["S_I_ID"] == ol_i_id, "S_I_ID should be %d\n%s" % (ol_i_id, pformat(si))
+            else:
+                si = self.stock.find_one({"S_I_ID": ol_i_id, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
+            assert si, "Failed to find S_I_ID: %d\n%s" % (ol_i_id, pformat(itemInfo))
+
+            s_quantity = si["S_QUANTITY"]
+            s_ytd = si["S_YTD"]
+            s_order_cnt = si["S_ORDER_CNT"]
+            s_remote_cnt = si["S_REMOTE_CNT"]
+            s_data = si["S_DATA"]
+            s_dist_xx = si[s_dist_col] # Fetches data from the s_dist_[d_id] column
+
+            ## Update stock
+            s_ytd += ol_quantity
+            if s_quantity >= ol_quantity + 10:
+                s_quantity = s_quantity - ol_quantity
+            else:
+                s_quantity = s_quantity + 91 - ol_quantity
+            s_order_cnt += 1
+
+            if ol_supply_w_id != w_id: s_remote_cnt += 1
+
+            # updateStock
+            self.stock.update_one(si, {"$set": {"S_QUANTITY": s_quantity, "S_YTD": s_ytd, "S_ORDER_CNT": s_order_cnt, "S_REMOTE_CNT": s_remote_cnt}}, session=s)
+
+            if i_data.find(constants.ORIGINAL_STRING) != -1 and s_data.find(constants.ORIGINAL_STRING) != -1:
+                brand_generic = 'B'
+            else:
+                brand_generic = 'G'
+            ## Transaction profile states to use "ol_quantity * i_price"
+            ol_amount = ol_quantity * i_price
+            total += ol_amount
+
+            ol = {"OL_O_ID": d_next_o_id, "OL_NUMBER": ol_number, "OL_I_ID": ol_i_id, "OL_SUPPLY_W_ID": ol_supply_w_id, "OL_DELIVERY_D": o_entry_d, "OL_QUANTITY": ol_quantity, "OL_AMOUNT": ol_amount, "OL_DIST_INFO": s_dist_xx}
+
+            if self.denormalize:
+                # createOrderLine
+                o[constants.TABLENAME_ORDER_LINE].append(ol)
+            else:
+                ol["OL_D_ID"] = d_id
+                ol["OL_W_ID"] = w_id
+
+                # createOrderLine
+                self.order_line.insert(ol, session=s)
+            ## IF
+
+            ## Add the info to be returned
+            item_data.append( (i_name, s_quantity, brand_generic, i_price, ol_amount) )
+        ## FOR
+
+        ## Adjust the total for the discount
+        #print "c_discount:", c_discount, type(c_discount)
+        #print "w_tax:", w_tax, type(w_tax)
+        #print "d_tax:", d_tax, type(d_tax)
+        total *= (1 - c_discount) * (1 + w_tax + d_tax)
+
+        # createOrder
+        self.customer.update_one({"_id": c["_id"]}, {"$push": {"ORDERS": o}}, session=s)
+
+        ## Pack up values the client is missing (see TPC-C 2.4.3.5)
+        misc = [ (w_tax, d_tax, d_next_o_id, total) ]
 
         return [ c, misc, item_data ]
 
@@ -682,8 +677,6 @@ class MongodbDriver(AbstractDriver):
                 # getOrderLines
                 orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": o_id}, {"OL_SUPPLY_W_ID": 1, "OL_I_ID": 1, "OL_QUANTITY": 1, "OL_AMOUNT": 1, "OL_DELIVERY_D": 1}, session=s)
         ## IF
-        s.commit_transaction()
-
 
         return [ c, order, orderLines ]
 
@@ -779,9 +772,6 @@ class MongodbDriver(AbstractDriver):
 
             # insertHistory
             self.history.insert_one(h, session=s)
-        # commit
-        s.commit_transaction()
-
 
         # TPC-C 2.5.3.3: Must display the following fields:
         # W_ID, D_ID, C_ID, C_D_ID, C_W_ID, W_STREET_1, W_STREET_2, W_CITY, W_STATE, W_ZIP,
@@ -829,13 +819,13 @@ class MongodbDriver(AbstractDriver):
         ## FOR
         result = self.stock.find({"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}}, session=s).count()
 
-        s.commit_transaction()
         return int(result)
 
     def run_transaction(self, client, txn_callback, session, name, params):
-        with session.start_transaction():
             try:
-                return (True, txn_callback(session, params))
+                # this implicitly commits on success
+                with session.start_transaction():
+                    return (True, txn_callback(session, params))
             except pymongo.errors.OperationFailure as exc:
                 if exc.code in (112, 244):  # WriteConflict, TransactionAborted
                     logging.debug("OperationFailure with error code: %d during operation: %s" % (exc.code, name))
