@@ -59,7 +59,7 @@ TABLE_COLUMNS = {
         "W_ZIP", # VARCHAR
         "W_TAX", # FLOAT
         "W_YTD", # FLOAT
-    ],    
+    ],
     constants.TABLENAME_DISTRICT: [
         "D_ID", # TINYINT
         "D_W_ID", # SMALLINT
@@ -159,7 +159,7 @@ TABLE_INDEXES = {
     ],
     constants.TABLENAME_WAREHOUSE: [
         "W_ID",
-    ],    
+    ],
     constants.TABLENAME_DISTRICT: [
         "D_ID",
         "D_W_ID",
@@ -207,8 +207,8 @@ class MongodbDriver(AbstractDriver):
         constants.TABLENAME_ORDER_LINE,
         constants.TABLENAME_HISTORY,
     ]
-    
-    
+
+
     def __init__(self, ddl):
         super(MongodbDriver, self).__init__("mongodb", ddl)
         self.database = None
@@ -216,29 +216,29 @@ class MongodbDriver(AbstractDriver):
         self.denormalize = False
         self.w_customers = { }
         self.w_orders = { }
-        
+
         ## Create member mapping to collections
         for name in constants.ALL_TABLES:
             self.__dict__[name.lower()] = None
-    
+
     ## ----------------------------------------------
     ## makeDefaultConfig
     ## ----------------------------------------------
     def makeDefaultConfig(self):
         return MongodbDriver.DEFAULT_CONFIG
-    
+
     ## ----------------------------------------------
     ## loadConfig
     ## ----------------------------------------------
     def loadConfig(self, config):
         for key in MongodbDriver.DEFAULT_CONFIG.keys():
             assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)
-        
+
         self.client = pymongo.MongoClient(config['host'], int(config['port']), w="majority")
         self.database = self.client[str(config['name'])]
         self.denormalize = config['denormalize']
         if self.denormalize: logging.debug("Using denormalized data model")
-        
+
         if config["reset"]:
             logging.debug("Deleting database '%s'" % self.database.name)
             for name in constants.ALL_TABLES:
@@ -246,16 +246,16 @@ class MongodbDriver(AbstractDriver):
                     self.database.drop_collection(name)
                     logging.debug("Dropped collection %s" % name)
         ## IF
-        
+
         ## Setup!
         load_indexes = ('execute' in config and not config['execute']) and \
                        ('load' in config and not config['load'])
         for name in constants.ALL_TABLES:
             if self.denormalize and name in MongodbDriver.DENORMALIZED_TABLES[1:]: continue
-            
+
             ## Create member mapping to collections
             self.__dict__[name.lower()] = self.database[name]
-            
+
             ## Create Indexes
             if load_indexes and name in TABLE_INDEXES and \
             (self.denormalize or (self.denormalize == False and not name in MongodbDriver.DENORMALIZED_TABLES[1:])):
@@ -263,20 +263,20 @@ class MongodbDriver(AbstractDriver):
                 for index in TABLE_INDEXES[name]:
                 	self.database[name].create_index(index)
         ## FOR
-    
+
     ## ----------------------------------------------
     ## loadTuples
     ## ----------------------------------------------
     def loadTuples(self, tableName, tuples):
         if len(tuples) == 0: return
         logging.debug("Loading %d tuples for tableName %s" % (len(tuples), tableName))
-        
+
         assert tableName in TABLE_COLUMNS, "Unexpected table %s" % tableName
         columns = TABLE_COLUMNS[tableName]
         num_columns = range(len(columns))
-        
+
         tuple_dicts = [ ]
-        
+
         ## We want to combine all of a CUSTOMER's ORDERS, ORDER_LINE, and HISTORY records
         ## into a single document
         if self.denormalize and tableName in MongodbDriver.DENORMALIZED_TABLES:
@@ -286,8 +286,8 @@ class MongodbDriver(AbstractDriver):
                     key = tuple(t[:3]) # C_ID, D_ID, W_ID
                     self.w_customers[key] = dict(map(lambda i: (columns[i], t[i]), num_columns))
                 ## FOR
-                
-            ## If this is an ORDER_LINE record, then we need to stick it inside of the 
+
+            ## If this is an ORDER_LINE record, then we need to stick it inside of the
             ## right ORDERS record
             elif tableName == constants.TABLENAME_ORDER_LINE:
                 for t in tuples:
@@ -300,7 +300,7 @@ class MongodbDriver(AbstractDriver):
                     if not tableName in o: o[tableName] = [ ]
                     o[tableName].append(dict(map(lambda i: (columns[i], t[i]), num_columns[4:])))
                 ## FOR
-                    
+
             ## Otherwise we have to find the CUSTOMER record for the other tables
             ## and append ourselves to them
             else:
@@ -310,15 +310,15 @@ class MongodbDriver(AbstractDriver):
                 else:
                     key_start = 0
                     cols = num_columns[3:] # Removes H_C_ID, H_C_D_ID, H_C_W_ID
-                    
+
                 for t in tuples:
                     c_key = tuple(t[key_start:key_start+3]) # C_ID, D_ID, W_ID
                     assert c_key in self.w_customers, "Customer Key: %s\nAll Keys:\n%s" % (str(c_key), "\n".join(map(str, sorted(self.w_customers.keys()))))
                     c = self.w_customers[c_key]
-                    
+
                     if not tableName in c: c[tableName] = [ ]
                     c[tableName].append(dict(map(lambda i: (columns[i], t[i]), cols)))
-                    
+
                     ## Since ORDER_LINE doesn't have a C_ID, we have to store a reference to
                     ## this ORDERS record so that we can look it up later
                     if tableName == constants.TABLENAME_ORDERS:
@@ -334,9 +334,9 @@ class MongodbDriver(AbstractDriver):
             ## FOR
             self.database[tableName].insert(tuple_dicts)
         ## IF
-        
+
         return
-        
+
     ## ----------------------------------------------
     ## loadFinishDistrict
     ## ----------------------------------------------
@@ -369,7 +369,7 @@ class MongodbDriver(AbstractDriver):
         w_id = params["w_id"]
         o_carrier_id = params["o_carrier_id"]
         ol_delivery_d = params["ol_delivery_d"]
-        
+
         with self.client.start_session(auto_start_transaction=True) as s:
             result = [ ]
             for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):
@@ -380,13 +380,13 @@ class MongodbDriver(AbstractDriver):
                     continue
                 assert len(no) > 0
                 o_id = no["NO_O_ID"]
-                
+
                 if self.denormalize:
                     ## getCId
                     c = self.customer.find_one({"ORDERS.O_ID": o_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_ID": 1, "ORDERS.O_ID": 1, "ORDERS.ORDER_LINE": 1}, session=s)
                     assert c != None, "No customer record [O_ID=%d, D_ID=%d, W_ID=%d]" % (o_id, d_id, w_id)
                     c_id = c["C_ID"]
-                    
+
                     ## sumOLAmount + updateOrderLine
                     ol_total = 0
                     for o in c["ORDERS"]:
@@ -398,7 +398,7 @@ class MongodbDriver(AbstractDriver):
                                 ol["OL_DELIVERY_D"] = ol_delivery_d
                             break
                     ## FOR
-                        
+
                     if ol_total == 0:
                         pprint(params)
                         pprint(no)
@@ -413,18 +413,18 @@ class MongodbDriver(AbstractDriver):
                     o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"O_C_ID": 1}, session=s)
                     assert o != None
                     c_id = o["O_C_ID"]
-                    
+
                     ## sumOLAmount
                     orderLines = self.order_line.find({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"OL_AMOUNT": 1}, session=s)
                     assert orderLines != None
                     ol_total = sum([ol["OL_AMOUNT"] for ol in orderLines])
-                    
+
                     ## updateOrders
                     self.orders.update_one(o, {"$set": {"O_CARRIER_ID": o_carrier_id}}, session=s)
-                
+
                     ## updateOrderLine
                     self.order_line.update_one({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"$set": {"OL_DELIVERY_D": ol_delivery_d}}, session=s)
-                    
+
                     ## updateCustomer
                     self.customer.update_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"$inc": {"C_BALANCE": ol_total}}, session=s)
                 ## IF
@@ -516,10 +516,10 @@ class MongodbDriver(AbstractDriver):
                 o["O_D_ID"] = d_id
                 o["O_W_ID"] = w_id
                 o["O_C_ID"] = c_id
-                
+
                 # createOrder
                 self.orders.insert_many(o, session=s)
-                
+
             ## ----------------
             ## OPTIMIZATION:
             ## If all of the items are at the same warehouse, then we'll issue a single
@@ -573,7 +573,7 @@ class MongodbDriver(AbstractDriver):
                 else:
                     s_quantity = s_quantity + 91 - ol_quantity
                 s_order_cnt += 1
-                
+
                 if ol_supply_w_id != w_id: s_remote_cnt += 1
 
                 # updateStock
@@ -595,7 +595,7 @@ class MongodbDriver(AbstractDriver):
                 else:
                     ol["OL_D_ID"] = d_id
                     ol["OL_W_ID"] = w_id
-                    
+
                     # createOrderLine
                     self.order_line.insert(ol, session=s)
                 ## IF
@@ -603,7 +603,7 @@ class MongodbDriver(AbstractDriver):
                 ## Add the info to be returned
                 item_data.append( (i_name, s_quantity, brand_generic, i_price, ol_amount) )
             ## FOR
-            
+
             ## Adjust the total for the discount
             #print "c_discount:", c_discount, type(c_discount)
             #print "w_tax:", w_tax, type(w_tax)
@@ -617,7 +617,7 @@ class MongodbDriver(AbstractDriver):
             misc = [ (w_tax, d_tax, d_next_o_id, total) ]
             s.commit_transaction()
 
-        
+
         return [ c, misc, item_data ]
 
     ## ----------------------------------------------
@@ -631,7 +631,7 @@ class MongodbDriver(AbstractDriver):
         d_id = params["d_id"]
         c_id = params["c_id"]
         c_last = params["c_last"]
-        
+
         assert w_id, pformat(params)
         assert d_id, pformat(params)
 
@@ -643,18 +643,18 @@ class MongodbDriver(AbstractDriver):
             for f in ['OL_SUPPLY_W_ID', 'OL_I_ID', 'OL_QUANTITY']:
                 return_fields["%s.%s.%s" % (constants.TABLENAME_ORDERS, constants.TABLENAME_ORDER_LINE, f)] = 1
         ## IF
-        
+
         if c_id != None:
             # getCustomerByCustomerId
             search_fields["C_ID"] = c_id
             c = self.customer.find_one(search_fields, return_fields, session=s)
             assert c
-            
+
         else:
             # getCustomersByLastName
             # Get the midpoint customer's id
             search_fields['C_LAST'] = c_last
-            
+
             all_customers = self.customer.find(search_fields, return_fields, session=s)
             namecnt = all_customers.count()
             assert namecnt > 0
@@ -666,7 +666,7 @@ class MongodbDriver(AbstractDriver):
 
         orderLines = [ ]
         order = None
-        
+
         if self.denormalize:
             # getLastOrder
             if constants.TABLENAME_ORDERS in c:
@@ -683,13 +683,13 @@ class MongodbDriver(AbstractDriver):
                 orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": o_id}, {"OL_SUPPLY_W_ID": 1, "OL_I_ID": 1, "OL_QUANTITY": 1, "OL_AMOUNT": 1, "OL_DELIVERY_D": 1}, session=s)
         ## IF
         s.commit_transaction()
-            
+
 
         return [ c, order, orderLines ]
 
     ## ----------------------------------------------
     ## doPayment
-    ## ----------------------------------------------    
+    ## ----------------------------------------------
     def doPayment(self, params):
         return self.run_transaction_with_retries(self.client, self._doPaymentTxn, "payment", params)
 
@@ -705,13 +705,13 @@ class MongodbDriver(AbstractDriver):
 
         search_fields = {"C_W_ID": w_id, "C_D_ID": d_id}
         return_fields = {"C_BALANCE": 0, "C_YTD_PAYMENT": 0, "C_PAYMENT_CNT": 0}
-        
+
         if c_id != None:
             # getCustomerByCustomerId
             search_fields["C_ID"] = c_id
             c = self.customer.find_one(search_fields, return_fields, session=s)
             assert c
-            
+
         else:
             # getCustomersByLastName
             # Get the midpoint customer's id
@@ -724,7 +724,7 @@ class MongodbDriver(AbstractDriver):
             c_id = c["C_ID"]
         assert len(c) > 0
         assert c_id != None
-        
+
         if c_id != None:
             # getCustomerByCustomerId
             c = self.customer.find_one({"C_W_ID": w_id, "C_D_ID": d_id, "C_ID": c_id}, session=s)
@@ -744,20 +744,20 @@ class MongodbDriver(AbstractDriver):
         # getWarehouse
         w = self.warehouse.find_one({"W_ID": w_id}, {"W_NAME": 1, "W_STREET_1": 1, "W_STREET_2": 1, "W_CITY": 1, "W_STATE": 1, "W_ZIP": 1}, session=s)
         assert w
-        
+
         # updateWarehouseBalance
         self.warehouse.update_one({"_id": w["_id"]}, {"$inc": {"H_AMOUNT": h_amount}}, session=s)
 
         # getDistrict
         d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1}, session=s)
         assert d
-        
+
         # updateDistrictBalance
         self.district.update_one({"_id": d["_id"]},  {"$inc": {"D_YTD": h_amount}}, session=s)
 
-        # Build CUSTOMER update command 
+        # Build CUSTOMER update command
         customer_update = {"$inc": {"C_BALANCE": h_amount*-1, "C_YTD_PAYMENT": h_amount, "C_PAYMENT_CNT": 1}}
-        
+
         # Customer Credit Information
         if c["C_CREDIT"] == constants.BAD_CREDIT:
             newData = " ".join(map(str, [c_id, c_d_id, c_w_id, d_id, w_id, h_amount]))
@@ -776,7 +776,7 @@ class MongodbDriver(AbstractDriver):
         else:
             # updateCustomer
             self.customer.update_one({"_id": c["_id"]}, customer_update, session=s)
-            
+
             # insertHistory
             self.history.insert_one(h, session=s)
         # commit
@@ -792,10 +792,10 @@ class MongodbDriver(AbstractDriver):
 
         # Hand back all the warehouse, district, and customer data
         return [ w, d, c ]
-        
+
     ## ----------------------------------------------
     ## doStockLevel
-    ## ----------------------------------------------    
+    ## ----------------------------------------------
     def doStockLevel(self, params):
         return self.run_transaction_with_retries(self.client, self._doStockLevelTxn, "stock level", params)
 
@@ -803,12 +803,12 @@ class MongodbDriver(AbstractDriver):
         w_id = params["w_id"]
         d_id = params["d_id"]
         threshold = params["threshold"]
-        
+
         # getOId
         d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NEXT_O_ID": 1}, session=s)
         assert d
         o_id = d["D_NEXT_O_ID"]
-        
+
         # getStockCount
         # Outer Table: ORDER_LINE
         # Inner Table: STOCK
@@ -821,7 +821,7 @@ class MongodbDriver(AbstractDriver):
                 orderLines.extend(ol["ORDERS"][0]["ORDER_LINE"])
         else:
             orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": {"$lt": o_id, "$gte": o_id-20}}, {"OL_I_ID": 1}, session=s)
-            
+
         assert orderLines
         ol_ids = set()
         for ol in orderLines:
