@@ -829,7 +829,6 @@ class MongodbDriver(AbstractDriver):
             except pymongo.errors.OperationFailure as exc:
                 if exc.code in (112, 244):  # WriteConflict, TransactionAborted
                     logging.debug("OperationFailure with error code: %d during operation: %s" % (exc.code, name))
-                    session.abort_transaction()
                     return (False, None)
                 print "Failed with unknown OperationFailure: %d" % exc.code
                 raise
