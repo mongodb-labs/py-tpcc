@@ -45,8 +45,15 @@ import drivers
 logging.basicConfig(level = logging.INFO,
                     format="%(asctime)s [%(funcName)s:%(lineno)03d] %(levelname)-5s: %(message)s",
                     datefmt="%m-%d-%Y %H:%M:%S",
-                    stream = sys.stdout)
-                    
+                    #
+                    filename='results.log' )
+
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+console.setFormatter(logging.Formatter('%(asctime)s [%(funcName)s:%(lineno)03d] %(levelname)-5s: %(message)s'))
+logging.getLogger('').addHandler(console)
+
+
 ## ==============================================
 ## createDriverClass
 ## ==============================================
@@ -263,7 +270,7 @@ if __name__ == '__main__':
         else:
             results = startExecution(driverClass, scaleParameters, args, config)
         assert results
-        print results.show(load_time)
+        logging.info(results.show(load_time))
     ## IF
     
 ## MAIN
