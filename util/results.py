@@ -126,5 +126,5 @@ class Results:
         total_rate = "%.02f txn/s" % ((total_cnt / total_time))
         ret += f % ("TOTAL", str(total_cnt), str(total_time * 1000000), total_rate)
 
-        return (ret.encode('utf-8'))
+        return (ret.encode('ascii', "ignore"))
 ## CLASS
