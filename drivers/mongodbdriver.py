@@ -269,7 +269,7 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     def loadTuples(self, tableName, tuples):
         if len(tuples) == 0: return
-        logging.debug("Loading %d tuples for tableName %s" % (len(tuples), tableName))
+        logging.info("Loading %d tuples for tableName %s" % (len(tuples), tableName))
 
         assert tableName in TABLE_COLUMNS, "Unexpected table %s" % tableName
         columns = TABLE_COLUMNS[tableName]
