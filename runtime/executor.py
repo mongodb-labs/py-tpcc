@@ -56,8 +56,10 @@ class Executor:
         logging.info("Executing benchmark for %d seconds" % duration)
         start = r.startBenchmark()
         debug = logging.getLogger().isEnabledFor(logging.DEBUG)
+        cnt = 0
 
         while (time.time() - start) <= duration:
+            cnt += 1
             txn, params = self.doOne()
             txn_id = r.startTransaction(txn)
             
@@ -73,10 +75,10 @@ class Executor:
                 r.abortTransaction(txn_id)
                 continue
 
-            if (time.time() - start) % 30 == 0:
-                logging.info("checkin")
-            #if debug: logging.debug("%s\nParameters:\n%s\nResult:\n%s" % (txn, pformat(params), pformat(val)))
-            
+            if cnt % 500 == 0:
+                cnt = 0
+                logging.info(r.show())
+
             r.stopTransaction(txn_id)
         ## WHILE
             
