@@ -73,6 +73,8 @@ class Executor:
                 r.abortTransaction(txn_id)
                 continue
 
+            if (time.time() - start) % 30 == 0:
+                logging.info("checkin")
             #if debug: logging.debug("%s\nParameters:\n%s\nResult:\n%s" % (txn, pformat(params), pformat(val)))
             
             r.stopTransaction(txn_id)
