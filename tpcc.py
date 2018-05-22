@@ -41,7 +41,9 @@ from pprint import pprint,pformat
 from util import *
 from runtime import *
 import drivers
+import random
 
+random.seed()
 logging.basicConfig(level = logging.INFO,
                     format="%(asctime)s [%(funcName)s:%(lineno)03d] %(levelname)-5s: %(message)s",
                     datefmt="%m-%d-%Y %H:%M:%S",
