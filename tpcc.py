@@ -272,6 +272,8 @@ if __name__ == '__main__':
         else:
             results = startExecution(driverClass, scaleParameters, args, config)
         assert results
+        logging.info("Final Results")
+        logging.info("Threads: %d" % args['clients'])
         logging.info(results.show(load_time))
     ## IF
     
