@@ -28,12 +28,12 @@ import logging
 import time
 
 class Results:
-    
+
     def __init__(self):
         self.start = None
         self.stop = None
         self.txn_id = 0
-        
+
         self.txn_counters = { }
         self.txn_times = { }
         self.running = { }

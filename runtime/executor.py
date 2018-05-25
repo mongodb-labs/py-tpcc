@@ -51,18 +51,18 @@ class Executor:
     ## DEF
     
     def execute(self, duration):
-        r = results.Results()
-        assert r
+        global_result = results.Results()
+        assert global_result
         logging.info("Executing benchmark for %d seconds" % duration)
-        start = r.startBenchmark()
+        start = global_result.startBenchmark()
         debug = logging.getLogger().isEnabledFor(logging.DEBUG)
-        cnt = 0
-
+        # Batch Results
+        batch_result = results.Results()
+        start_batch = batch_result.startBenchmark()
         while (time.time() - start) <= duration:
-            cnt += 1
             txn, params = self.doOne()
-            txn_id = r.startTransaction(txn)
-            
+            global_txn_id = global_result.startTransaction(txn)
+            batch_txn_id = batch_result.startTransaction(txn)
             if debug: logging.debug("Executing '%s' transaction" % txn)
             try:
                 val = self.driver.executeTransaction(txn, params)
@@ -72,18 +72,23 @@ class Executor:
                 logging.warn("Failed to execute Transaction '%s': %s" % (txn, ex))
                 if debug: traceback.print_exc(file=sys.stdout)
                 if self.stop_on_error: raise
-                r.abortTransaction(txn_id)
+                global_result.abortTransaction(global_txn_id)
+                batch_result.abortTransaction(batch_txn_id)
                 continue
 
-            if cnt % 500 == 0:
-                cnt = 0
-                logging.info(r.show())
+            batch_result.stopTransaction(batch_txn_id)
+            global_result.stopTransaction(global_txn_id)
 
-            r.stopTransaction(txn_id)
+            if time.time() - start_batch > 60:
+                batch_result.stopBenchmark()
+                logging.info(batch_result.show())
+                batch_result = results.Results()
+                start_batch = batch_result.startBenchmark()
+
         ## WHILE
-            
-        r.stopBenchmark()
-        return (r)
+        batch_result.stopBenchmark()
+        global_result.stopBenchmark()
+        return (global_result)
     ## DEF
     
     def doOne(self):
