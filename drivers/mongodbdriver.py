@@ -346,6 +346,8 @@ class MongodbDriver(AbstractDriver):
             }
         ]
         result = list(collection.aggregate(pipeline))
+        if not result:
+            return 0
         return result[0]['count']
 
     ## ----------------------------------------------
