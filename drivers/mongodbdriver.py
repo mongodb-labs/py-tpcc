@@ -805,7 +805,6 @@ class MongodbDriver(AbstractDriver):
         w_id = params["w_id"]
         d_id = params["d_id"]
         threshold = params["threshold"]
-
         # getOId
         d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NEXT_O_ID": 1}, session=s)
         assert d
