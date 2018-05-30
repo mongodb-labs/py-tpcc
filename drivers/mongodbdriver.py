@@ -238,7 +238,6 @@ class MongodbDriver(AbstractDriver):
         self.database = self.client[str(config['name'])]
         self.denormalize = config['denormalize']
         if self.denormalize: logging.debug("Using denormalized data model")
-
         if config["reset"]:
             logging.debug("Deleting database '%s'" % self.database.name)
             for name in constants.ALL_TABLES:
@@ -337,6 +336,18 @@ class MongodbDriver(AbstractDriver):
 
         return
 
+    def get_count(self, collection, match={}, session=None):
+        pipeline = [
+            {
+                "$match": match
+            },
+            {
+                "$count": "count"
+            }
+        ]
+        result = list(collection.aggregate(pipeline))
+        return result[0]['count']
+
     ## ----------------------------------------------
     ## loadFinishDistrict
     ## ----------------------------------------------
@@ -356,8 +367,9 @@ class MongodbDriver(AbstractDriver):
         if logging.getLogger().isEnabledFor(logging.DEBUG):
             for name in constants.ALL_TABLES:
                 if self.denormalize and name in MongodbDriver.DENORMALIZED_TABLES[1:]: continue
-                logging.debug("%-12s%d records" % (name+":", self.database[name].count()))
+                logging.debug("%-12s%d records" % (name+":", self.get_count(self.database[name])))
         ## IF
+
 
     ## ----------------------------------------------
     ## doDelivery
@@ -468,7 +480,7 @@ class MongodbDriver(AbstractDriver):
         items = self.item.find({"I_ID": {"$in": i_ids}}, {"I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1}, session=s)
         ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
         ## Note that this will happen with 1% of transactions on purpose.
-        if items.count() != len(i_ids):
+        if self.get_count(self.item, {"I_ID": {"$in": i_ids}}, s) != len(i_ids):
             ## TODO Abort here!
             return
         ## IF
@@ -526,7 +538,7 @@ class MongodbDriver(AbstractDriver):
         if all_local and False:
             # getStockInfo
             allStocks = self.stock.find({"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
-            assert allStocks.count() == ol_cnt
+            assert self.get_count(self.stock, {"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, session=s) == ol_cnt
             stockInfos = { }
             for si in allStocks:
                 stockInfos["S_I_ID"] = si # HACK
@@ -651,7 +663,7 @@ class MongodbDriver(AbstractDriver):
             search_fields['C_LAST'] = c_last
 
             all_customers = self.customer.find(search_fields, return_fields, session=s)
-            namecnt = all_customers.count()
+            namecnt = self.get_count(self.customer, search_fields, s)
             assert namecnt > 0
             index = (namecnt-1)/2
             c = all_customers[index]
@@ -710,7 +722,7 @@ class MongodbDriver(AbstractDriver):
             # Get the midpoint customer's id
             search_fields['C_LAST'] = c_last
             all_customers = self.customer.find(search_fields, return_fields, session=s)
-            namecnt = all_customers.count()
+            namecnt = self.get_count(self.customer, search_fields, s)
             assert namecnt > 0
             index = (namecnt-1)/2
             c = all_customers[index]
@@ -725,7 +737,7 @@ class MongodbDriver(AbstractDriver):
             # getCustomersByLastName
             # Get the midpoint customer's id
             all_customers = self.customer.find({"C_W_ID": w_id, "C_D_ID": d_id, "C_LAST": c_last}, session=s)
-            namecnt = all_customers.count()
+            namecnt = self.get_count(self.customer, {"C_W_ID": w_id, "C_D_ID": d_id, "C_LAST": c_last}, s)
             assert namecnt > 0
             index = (namecnt-1)/2
             c = all_customers[index]
@@ -817,7 +829,8 @@ class MongodbDriver(AbstractDriver):
         for ol in orderLines:
             ol_ids.add(ol["OL_I_ID"])
         ## FOR
-        result = self.stock.find({"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}}, session=s).count()
+        result = self.get_count(self.stock,
+                                {"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}}, s)
 
         return int(result)
 
