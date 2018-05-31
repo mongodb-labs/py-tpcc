@@ -345,7 +345,7 @@ class MongodbDriver(AbstractDriver):
                 "$count": "count"
             }
         ]
-        result = list(collection.aggregate(pipeline))
+        result = list(collection.aggregate(pipeline, session=session))
         if not result:
             return 0
         return result[0]['count']
@@ -483,7 +483,8 @@ class MongodbDriver(AbstractDriver):
         ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
         ## Note that this will happen with 1% of transactions on purpose.
         if self.get_count(self.item, {"I_ID": {"$in": i_ids}}, s) != len(i_ids):
-            ## TODO Abort here!
+            s.abort_transaction()
+            logging.info("Aborting transaction - expected")
             return
         ## IF
 
@@ -540,7 +541,7 @@ class MongodbDriver(AbstractDriver):
         if all_local and False:
             # getStockInfo
             allStocks = self.stock.find({"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
-            assert self.get_count(self.stock, {"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, session=s) == ol_cnt
+            assert self.get_count(self.stock, {"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, s) == ol_cnt
             stockInfos = { }
             for si in allStocks:
                 stockInfos["S_I_ID"] = si # HACK
