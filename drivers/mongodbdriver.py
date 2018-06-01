@@ -168,6 +168,7 @@ TABLE_INDEXES = {
         "C_ID",
         "C_D_ID",
         "C_W_ID",
+        [("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("C_LAST", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_STOCK:      [
         "S_I_ID",
@@ -258,7 +259,7 @@ class MongodbDriver(AbstractDriver):
             ## Create Indexes
             if load_indexes and name in TABLE_INDEXES and \
             (self.denormalize or (self.denormalize == False and not name in MongodbDriver.DENORMALIZED_TABLES[1:])):
-                logging.debug("Creating index for %s" % name)
+                logging.info("Creating index for %s" % name)
                 for index in TABLE_INDEXES[name]:
                 	self.database[name].create_index(index)
         ## FOR
