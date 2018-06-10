@@ -485,7 +485,9 @@ class MongodbDriver(AbstractDriver):
         ## Note that this will happen with 1% of transactions on purpose.
         if self.get_count(self.item, {"I_ID": {"$in": i_ids}}, s) != len(i_ids):
             s.abort_transaction()
-            logging.info("Aborting transaction - expected")
+            # Removing this log line as it's an intentional part of the test 
+            # and it was clouding results of the benchmark 
+            # logging.info("Aborting transaction - expected")
             return
         ## IF
 
