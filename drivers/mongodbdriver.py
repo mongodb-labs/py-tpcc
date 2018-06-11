@@ -200,6 +200,7 @@ class MongodbDriver(AbstractDriver):
         "host":         ("The hostname to mongod", "localhost" ),
         "port":         ("The port number to mongod", 27017 ),
         "name":         ("Collection name", "tpcc"),
+        "replicaset":   ("ReplicaSet name -- you can only run transactions on the PRIMARY node in a replicaset", "replset"),
         "denormalize":  ("If set to true, then the CUSTOMER data will be denormalized into a single document", True),
     }
     DENORMALIZED_TABLES = [
@@ -235,7 +236,8 @@ class MongodbDriver(AbstractDriver):
         for key in MongodbDriver.DEFAULT_CONFIG.keys():
             assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)
 
-        self.client = pymongo.MongoClient(config['host'], int(config['port']))
+        self.client = pymongo.MongoClient(config['host'], int(config['port']), replicaset=config['replicaset'])
+
         self.database = self.client[str(config['name'])]
         self.denormalize = config['denormalize']
         if self.denormalize: logging.debug("Using denormalized data model")
