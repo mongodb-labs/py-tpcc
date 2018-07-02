@@ -201,7 +201,7 @@ class MongodbDriver(AbstractDriver):
         "port":         ("The port number to mongod", 27017 ),
         "name":         ("Collection name", "tpcc"),
         "replicaset":   ("ReplicaSet name -- you can only run transactions on the PRIMARY node in a replicaset", "replset"),
-        "denormalize":  ("If set to true, then the CUSTOMER data will be denormalized into a single document", True),
+        "denormalize":  ("If set to true, then the data will be denormalized using MongoDB schema design best practices", True),
     }
     DENORMALIZED_TABLES = [
         constants.TABLENAME_CUSTOMER,
@@ -220,7 +220,6 @@ class MongodbDriver(AbstractDriver):
         super(MongodbDriver, self).__init__("mongodb", ddl)
         self.database = None
         self.client = None
-        self.denormalize = False
 	self.executed=False
         self.w_customers = { }
         self.w_orders = { }
@@ -249,7 +248,8 @@ class MongodbDriver(AbstractDriver):
         self.client = pymongo.MongoClient(config['host'], int(config['port']), replicaset=config['replicaset'])
 
         self.database = self.client[str(config['name'])]
-        self.denormalize = config['denormalize']
+        self.denormalize = eval(config['denormalize'])
+
         if self.denormalize: logging.debug("Using denormalized data model")
         if config["reset"]:
             logging.debug("Deleting database '%s'" % self.database.name)
@@ -263,6 +263,7 @@ class MongodbDriver(AbstractDriver):
         load_indexes = ('execute' in config and not config['execute']) and \
                        ('load' in config and not config['load'])
 	#NOTE: NOT YET IMPLEMENTED
+
 	if not self.denormalize:
             for name in constants.ALL_TABLES:
 		self.__dict__[name.lower()] = self.database[name]
@@ -277,6 +278,7 @@ class MongodbDriver(AbstractDriver):
                     for index in TABLE_INDEXES[name]:
 			#print("CREATING INDEXES FOR", name, index)
                         self.database[name].create_index(index)
+        ## IF
 
     ## ----------------------------------------------
     ## loadTuples
@@ -316,8 +318,8 @@ class MongodbDriver(AbstractDriver):
                     if not tableName in o: o[tableName] = [ ]
                     o[tableName].append(dict(map(lambda i: (columns[i], t[i]), num_columns[4:])))
                 ## FOR
+
 	    elif tableName == constants.TABLENAME_NEW_ORDER:
-		
 		for t in tuples:
                     o_key = tuple(t[:3]) # O_ID, O_D_ID, O_W_ID
                     (c_key, o_idx) = self.w_orders[o_key]
@@ -326,40 +328,39 @@ class MongodbDriver(AbstractDriver):
                     assert o_idx < len(c[constants.TABLENAME_ORDERS])
                     o = c[constants.TABLENAME_ORDERS][o_idx]
                     if not tableName in o: o[tableName] = True
-		
                 ## FOR
+		
 	    elif tableName == constants.TABLENAME_WAREHOUSE:
 		for t in tuples:
 		    k=t[0]
 		    d=dict(map(lambda i: (columns[i], t[i]), num_columns))
 		    if not k in self.w_warehouses: self.w_warehouses[k]=[]
 		    self.w_warehouses[k].append(d)
-	
+                ## FOR
 		
 	    elif tableName == constants.TABLENAME_DISTRICT:
-		
 		for t in tuples:
 		    k=t[1]
 		    if not k in self.w_districts: self.w_districts[k]=[]
 		    d=dict(map(lambda i: (columns[i], t[i]), num_columns))
 		    self.w_districts[k].append(d)
+                ## FOR
 		
             elif tableName == constants.TABLENAME_ITEM:
-		
 		for t in tuples:
 		    k=t[0]
 		    if not k in self.w_items: self.w_items[k] = []
 		    self.w_items[k].append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
+                ## FOR
 		
             elif tableName == constants.TABLENAME_STOCK:
 		for t in tuples:
 		    k=t[0]
 		    if not k in self.w_stock: self.w_stock[k]=[]
 		    self.w_stock[k].append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
+                ## FOR
 		
            		    
-
-
             ## Otherwise we have to find the CUSTOMER record for the other tables
             ## and append ourselves to them
             else:
@@ -391,6 +392,7 @@ class MongodbDriver(AbstractDriver):
             for t in tuples:
                 tuple_dicts.append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
             ## FOR
+            #print( "Normalized tuple dict:", tuple_dicts)
             self.database[tableName].insert(tuple_dicts)
         ## IF
 
@@ -514,7 +516,6 @@ class MongodbDriver(AbstractDriver):
             	assert len(no) > 0
             	o_id = no["NO_O_ID"]
 
-
                 ## getCId
                 o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"O_C_ID": 1}, session=s)
                 assert o != None
@@ -533,20 +534,21 @@ class MongodbDriver(AbstractDriver):
 
                 ## updateCustomer
                 self.customer.update_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"$inc": {"C_BALANCE": ol_total}}, session=s)
-            ## IF
 
             	## deleteNewOrder
             	self.new_order.delete_one({"_id": no['_id']}, session=s)
+            ## IF
 
-            	# These must be logged in the "result file" according to TPC-C 2.7.2.2 (page 39)
-            	# We remove the queued time, completed time, w_id, and o_carrier_id: the client can figure
-            	# them out
-            	# If there are no order lines, SUM returns null. There should always be order lines.
-            	assert ol_total != None, "ol_total is NULL: there are no order lines. This should not happen"
-            	assert ol_total > 0.0
+            # These must be logged in the "result file" according to TPC-C 2.7.2.2 (page 39)
+            # We remove the queued time, completed time, w_id, and o_carrier_id: the client can figure
+            # them out
+            # If there are no order lines, SUM returns null. There should always be order lines.
+            assert ol_total != None, "ol_total is NULL: there are no order lines. This should not happen"
+            assert ol_total > 0.0
 
             result.append((d_id, o_id))
         ## FOR
+
         return result
 
     ## ----------------------------------------------
@@ -612,8 +614,8 @@ class MongodbDriver(AbstractDriver):
             d_next_o_id = d["D_NEXT_O_ID"]
 
             # incrementNextOrderId
-            # HACK: This is not transactionally safe!
             self.district.update_one(d, {"$inc": {"D_NEXT_O_ID": 1}}, session=s)
+        ## IF
 
         # getCustomer
         c = self.customer.find_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_DISCOUNT": 1, "C_LAST": 1, "C_CREDIT": 1}, session=s)
@@ -629,8 +631,7 @@ class MongodbDriver(AbstractDriver):
         # createNewOrder
 	if not self.denormalize:
             self.new_order.insert_one({"NO_O_ID": d_next_o_id, "NO_D_ID": d_id, "NO_W_ID": w_id}, session=s)
-
-
+        ## IF
 
         o = {"O_ID": d_next_o_id, "O_ENTRY_D": o_entry_d, "O_CARRIER_ID": o_carrier_id, "O_OL_CNT": ol_cnt, "O_ALL_LOCAL": all_local}
         if self.denormalize:
@@ -642,7 +643,9 @@ class MongodbDriver(AbstractDriver):
             o["O_C_ID"] = c_id
 
             # createOrder
-            self.orders.insert_many(o, session=s)
+            #print("Creating order:", o)
+            self.orders.insert_one(o, session=s)
+        ## IF
 
         ## ----------------
         ## OPTIMIZATION:
@@ -729,7 +732,7 @@ class MongodbDriver(AbstractDriver):
                 ol["OL_W_ID"] = w_id
 
                 # createOrderLine
-                self.order_line.insert(ol, session=s)
+                self.order_line.insert_one(ol, session=s)
             ## IF
 
             ## Add the info to be returned
@@ -807,7 +810,7 @@ class MongodbDriver(AbstractDriver):
                 orderLines = order[constants.TABLENAME_ORDER_LINE]
         else:
             # getLastOrder
-            order = self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_C_ID": c_id}, {"O_ID": 1, "O_CARRIER_ID": 1, "O_ENTRY_D": 1}).sort("O_ID", direction=pymongo.DESCENDING, session=s).limit(1)[0]
+            order = self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_C_ID": c_id}, {"O_ID": 1, "O_CARRIER_ID": 1, "O_ENTRY_D": 1}, session=s).sort("O_ID", direction=pymongo.DESCENDING).limit(1)[0]
             o_id = order["O_ID"]
 
             if order:
