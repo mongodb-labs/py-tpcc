@@ -154,13 +154,13 @@ TABLE_COLUMNS = {
     ],
 }
 TABLE_INDEXES = {
-    constants.TABLENAME_ITEM: [
+    constants.TABLENAME_ITEM:       [
         "I_ID",
     ],
-    constants.TABLENAME_WAREHOUSE: [
+    constants.TABLENAME_WAREHOUSE:  [
         "W_ID",
     ],
-    constants.TABLENAME_DISTRICT: [
+    constants.TABLENAME_DISTRICT:   [
         "D_ID",
         "D_W_ID",
     ],
@@ -191,6 +191,46 @@ TABLE_INDEXES = {
         "OL_W_ID",
     ],
 }
+
+DENORMALIZED_TABLE_INDEXES = {
+    constants.TABLENAME_ITEM:       [    
+        "I_ID",
+    ],
+    constants.TABLENAME_WAREHOUSE:  [
+        "W_ID",
+    ],
+    constants.TABLENAME_DISTRICT:   [
+        "D_ID",
+        "D_W_ID",
+    ],
+    constants.TABLENAME_CUSTOMER:   [
+        [("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("C_LAST", pymongo.ASCENDING)],
+        [("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("ORDERS.NEW_ORDER", pymongo.ASCENDING)],
+        [("C_ID", pymongo.ASCENDING), ("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING)],
+        [("ORDERS.O_ID", pymongo.ASCENDING), ("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING)]
+    ],
+    constants.TABLENAME_STOCK:      [
+        "S_I_ID",
+        "S_W_ID",
+    ],
+    constants.TABLENAME_ORDERS:     [
+        "O_ID",
+        "O_D_ID",
+        "O_W_ID",
+        "O_C_ID",
+    ],
+    constants.TABLENAME_NEW_ORDER:  [
+        "NO_O_ID",
+        "NO_D_ID",
+        "NO_W_ID",
+    ],
+    constants.TABLENAME_ORDER_LINE: [
+        "OL_O_ID",
+        "OL_D_ID",
+        "OL_W_ID",
+    ],
+}
+
 
 ## ==============================================
 ## MongodbDriver
@@ -274,10 +314,11 @@ class MongodbDriver(AbstractDriver):
 	    tables=[constants.TABLENAME_CUSTOMER, constants.TABLENAME_WAREHOUSE, constants.TABLENAME_ITEM]
             for name in tables:
                 self.__dict__[name.lower()] = self.database[name]
-                if load_indexes and name in TABLE_INDEXES:
-                    for index in TABLE_INDEXES[name]:
+                if load_indexes and name in DENORMALIZED_TABLE_INDEXES:
+                    for index in DENORMALIZED_TABLE_INDEXES[name]:
 			#print("CREATING INDEXES FOR", name, index)
                         self.database[name].create_index(index)
+                    ## FOR
         ## IF
 
     ## ----------------------------------------------
