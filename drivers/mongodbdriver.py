@@ -173,6 +173,7 @@ TABLE_INDEXES = {
     constants.TABLENAME_STOCK:      [
         "S_I_ID",
         "S_W_ID",
+        [("S_W_ID", pymongo.ASCENDING), ("S_I_ID", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_ORDERS:     [
         "O_ID",
@@ -199,36 +200,12 @@ DENORMALIZED_TABLE_INDEXES = {
     constants.TABLENAME_WAREHOUSE:  [
         "W_ID",
     ],
-    constants.TABLENAME_DISTRICT:   [
-        "D_ID",
-        "D_W_ID",
-    ],
     constants.TABLENAME_CUSTOMER:   [
         [("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("C_LAST", pymongo.ASCENDING)],
         [("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("ORDERS.NEW_ORDER", pymongo.ASCENDING)],
         [("C_ID", pymongo.ASCENDING), ("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING)],
         [("ORDERS.O_ID", pymongo.ASCENDING), ("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING)]
-    ],
-    constants.TABLENAME_STOCK:      [
-        "S_I_ID",
-        "S_W_ID",
-    ],
-    constants.TABLENAME_ORDERS:     [
-        "O_ID",
-        "O_D_ID",
-        "O_W_ID",
-        "O_C_ID",
-    ],
-    constants.TABLENAME_NEW_ORDER:  [
-        "NO_O_ID",
-        "NO_D_ID",
-        "NO_W_ID",
-    ],
-    constants.TABLENAME_ORDER_LINE: [
-        "OL_O_ID",
-        "OL_D_ID",
-        "OL_W_ID",
-    ],
+    ]
 }
 
 
@@ -707,6 +684,7 @@ class MongodbDriver(AbstractDriver):
 		for si in allStocks:
                     stockInfos["S_I_ID"] = si # HACK
             ## IF
+        ## IF
 
         ## ----------------
         ## Insert Order Item Information
@@ -1022,7 +1000,7 @@ class MongodbDriver(AbstractDriver):
             ol_ids.add(ol["OL_I_ID"])
         ## FOR
 	if self.denormalize:
-	    result = self.get_count(self.item,{"STOCK": {"$elemMatch": {"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}}}}, s)
+	    result = self.get_count(self.item,{"I_ID": {"$in": list(ol_ids)}, "STOCK": {"$elemMatch": {"S_W_ID": w_id, "S_QUANTITY": {"$lt": threshold}}}}, s)
 	else:
             result = self.get_count(self.stock,
                                 {"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}}, s)
