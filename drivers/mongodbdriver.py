@@ -214,11 +214,12 @@ DENORMALIZED_TABLE_INDEXES = {
 ## ==============================================
 class MongodbDriver(AbstractDriver):
     DEFAULT_CONFIG = {
-        "host":         ("The hostname to mongod", "localhost" ),
-        "port":         ("The port number to mongod", 27017 ),
-        "name":         ("Collection name", "tpcc"),
-        "replicaset":   ("ReplicaSet name -- you can only run transactions on the PRIMARY node in a replicaset", "replset"),
-        "denormalize":  ("If set to true, then the data will be denormalized using MongoDB schema design best practices", True),
+        "host":             ("The hostname to mongod", "localhost" ),
+        "port":             ("The port number to mongod", 27017 ),
+        "name":             ("Collection name", "tpcc"),
+        "replicaset":       ("ReplicaSet name -- you can only run transactions on the PRIMARY node in a replicaset", "replset"),
+        "denormalize":      ("If set to true, then the data will be denormalized using MongoDB schema design best practices", True),
+        "secondary_reads":  ("If set to true, then we will perform causal reads against secondaries when possible", False),
     }
     DENORMALIZED_TABLES = [
         constants.TABLENAME_CUSTOMER,
@@ -238,6 +239,8 @@ class MongodbDriver(AbstractDriver):
         self.database = None
         self.client = None
 	self.executed=False
+        self.session_opts = ""
+        self.transaction_opts = ""
         self.w_customers = { }
         self.w_orders = { }
 	self.w_warehouses = { }
@@ -266,6 +269,19 @@ class MongodbDriver(AbstractDriver):
 
         self.database = self.client[str(config['name'])]
         self.denormalize = eval(config['denormalize'])
+
+        # The entire transaction--reads and writes--must execute against the same node, and since each transaction
+        # is R/W against a snapshot and transactions can only be started on a PRIMARY... and everything in TPC-C is
+        # done within a transactional context (you need a consistent view) then this is not an option in 4.0
+        # I hope to see this limitation lifted with global point-in-time read support in 4.2 
+        # See: https://docs.mongodb.com/manual/reference/read-preference/
+        # self.secondary_reads = eval(config['secondary_reads'])
+        self.secondary_reads = False
+
+        if self.secondary_reads:
+	   self.session_opts += "causal_consistency=True" 
+	   self.transaction_opts += "read_preference=ReadPreference.SECONDARY_PREFERRED" 
+        ## IF
 
         if self.denormalize: logging.debug("Using denormalized data model")
         if config["reset"]:
@@ -1010,10 +1026,10 @@ class MongodbDriver(AbstractDriver):
     def run_transaction(self, client, txn_callback, session, name, params):
             try:
                 # this implicitly commits on success
-                with session.start_transaction():
+                with session.start_transaction(self.transaction_opts):
                     return (True, txn_callback(session, params))
             except pymongo.errors.OperationFailure as exc:
-                if exc.code in (24, 112, 244):  # LockTimeout,WriteConflict, TransactionAborted
+                if exc.code in (24, 112, 244):  # LockTimeout, WriteConflict, TransactionAborted
                     logging.debug("OperationFailure with error code: %d during operation: %s" % (exc.code, name))
                     return (False, None)
                 print "Failed with unknown OperationFailure: %d" % exc.code
@@ -1026,7 +1042,7 @@ class MongodbDriver(AbstractDriver):
     # Should we retry txns within the same session or start a new one?
     def run_transaction_with_retries(self, client, txn_callback, name, params):
         txn_counter = 0
-        with client.start_session() as s:
+        with client.start_session(self.session_opts) as s:
             while True:
                 (ok, value) = self.run_transaction(client, txn_callback, s, name, params)
                 if ok:
