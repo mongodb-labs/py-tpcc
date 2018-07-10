@@ -185,6 +185,7 @@ TABLE_INDEXES = {
         "NO_O_ID",
         "NO_D_ID",
         "NO_W_ID",
+	[("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_ORDER_LINE: [
         "OL_O_ID",
@@ -199,13 +200,20 @@ DENORMALIZED_TABLE_INDEXES = {
     ],
     constants.TABLENAME_WAREHOUSE:  [
         "W_ID",
+	[("W_ID",pymongo.ASCENDING), ("DISTRICT.D_ID",pymongo.ASCENDING)],
     ],
     constants.TABLENAME_CUSTOMER:   [
         [("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("C_LAST", pymongo.ASCENDING)],
-        [("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("ORDERS.NEW_ORDER", pymongo.ASCENDING)],
         [("C_ID", pymongo.ASCENDING), ("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING)],
         [("ORDERS.O_ID", pymongo.ASCENDING), ("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING)]
-    ]
+    ],
+    constants.TABLENAME_NEW_ORDER:  [
+        "NO_O_ID",
+	"NO_D_ID",
+        "NO_W_ID",
+	[("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING)]
+    ],
+    
 }
 
 
@@ -228,7 +236,6 @@ class MongodbDriver(AbstractDriver):
         constants.TABLENAME_HISTORY,
 	constants.TABLENAME_ITEM,
 	constants.TABLENAME_STOCK,
-	constants.TABLENAME_NEW_ORDER,
 	constants.TABLENAME_WAREHOUSE,
 	constants.TABLENAME_DISTRICT,
     ]
@@ -309,7 +316,7 @@ class MongodbDriver(AbstractDriver):
 		    for index in TABLE_INDEXES[name]:
                 	self.database[name].create_index(index)
 	else:
-	    tables=[constants.TABLENAME_CUSTOMER, constants.TABLENAME_WAREHOUSE, constants.TABLENAME_ITEM]
+	    tables=[constants.TABLENAME_CUSTOMER, constants.TABLENAME_WAREHOUSE, constants.TABLENAME_ITEM,constants.TABLENAME_NEW_ORDER]
             for name in tables:
                 self.__dict__[name.lower()] = self.database[name]
                 if load_indexes and name in DENORMALIZED_TABLE_INDEXES:
@@ -518,9 +525,23 @@ class MongodbDriver(AbstractDriver):
 
         result = [ ]
         for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):
-	    #NOTE: DOES NOT MEET TECHNICAL SPECIFICATION. MUST FIND LOWEST O_ID.
+	    
             if self.denormalize:
-		c = self.customer.find_one({"ORDERS.NEW_ORDER": True, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_ID": 1, "ORDERS.$": 1}, session=s)
+	
+		## getNewOrder
+                #https://stackoverflow.com/questions/6360465/how-to-find-min-value-in-mongodb
+                no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
+                no_converted_cursor=list(no_cursor)
+                if len(no_converted_cursor) == 0:
+                    ## No orders for this district: skip it. Note: This must be reported if > 1%
+                    continue
+                assert len(no_converted_cursor) > 0
+                no=no_converted_cursor[0]
+                o_id = no["NO_O_ID"]
+		c=None
+		if o_id != None:
+		    c=self.customer.find_one({"ORDERS.O_ID": o_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_ID": 1, "ORDERS.$": 1}, session=s)
+
 		
                 if c==None:
 		    continue
@@ -544,15 +565,18 @@ class MongodbDriver(AbstractDriver):
                     sys.exit(1)
 
                 ## updateOrders + updateCustomer
-                self.customer.update_one({"_id": c['_id'], "ORDERS.O_ID": o_id}, {"$set": {"ORDERS.$.O_CARRIER_ID": o_carrier_id, "ORDERS.$.ORDER_LINE": orderLines, "ORDERS.$.NEW_ORDER": False}, "$inc": {"C_BALANCE": ol_total}}, session=s)
+                self.customer.update_one({"_id": c['_id'], "ORDERS.O_ID": o_id}, {"$set": {"ORDERS.$.O_CARRIER_ID": o_carrier_id, "ORDERS.$.ORDER_LINE": orderLines}, "$inc": {"C_BALANCE": ol_total}}, session=s)
             else:
 
             	## getNewOrder
-            	no = self.new_order.find_one({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s)
-            	if no == None:
-                	## No orders for this district: skip it. Note: This must be reported if > 1%
-                	continue
-            	assert len(no) > 0
+		#https://stackoverflow.com/questions/6360465/how-to-find-min-value-in-mongodb
+            	no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
+		no_converted_cursor=list(no_cursor)
+            	if len(no_converted_cursor) == 0:
+                    ## No orders for this district: skip it. Note: This must be reported if > 1%
+                    continue
+            	assert len(no_converted_cursor) > 0
+		no=no_converted_cursor[0]
             	o_id = no["NO_O_ID"]
 
                 ## getCId
@@ -668,14 +692,13 @@ class MongodbDriver(AbstractDriver):
         o_carrier_id = constants.NULL_CARRIER_ID
 
         # createNewOrder
-	if not self.denormalize:
-            self.new_order.insert_one({"NO_O_ID": d_next_o_id, "NO_D_ID": d_id, "NO_W_ID": w_id}, session=s)
+	
+        self.new_order.insert_one({"NO_O_ID": d_next_o_id, "NO_D_ID": d_id, "NO_W_ID": w_id}, session=s)
         ## IF
 
         o = {"O_ID": d_next_o_id, "O_ENTRY_D": o_entry_d, "O_CARRIER_ID": o_carrier_id, "O_OL_CNT": ol_cnt, "O_ALL_LOCAL": all_local}
         if self.denormalize:
             o[constants.TABLENAME_ORDER_LINE] = [ ]
-	    o["NEW_ORDER"]=True
         else:
             o["O_D_ID"] = d_id
             o["O_W_ID"] = w_id
@@ -923,11 +946,11 @@ class MongodbDriver(AbstractDriver):
 
 	if self.denormalize:
             # getDistrict
-            d = self.warehouse.find_one( {"DISTRICT": {"$elemMatch": {"D_W_ID": w_id, "D_ID": d_id}}}, {"DISTRICT.$": 1}, session=s)
+            d = self.warehouse.find_one( {"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"DISTRICT.$": 1}, session=s)["DISTRICT"][0]
             assert d
 	
             # updateDistrictBalance
-            self.warehouse.update_one({"DISTRICT": {"$elemMatch": {"D_W_ID": w_id, "D_ID": d_id}}},  {"$inc": {"DISTRICT.$.D_YTD": h_amount}}, session=s)
+            self.warehouse.update_one({"W_ID": w_id, "DISTRICT.D_ID": d_id},  {"$inc": {"DISTRICT.$.D_YTD": h_amount}}, session=s)
 	else:
 	    # getDistrict
             d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1}, session=s)
@@ -948,11 +971,7 @@ class MongodbDriver(AbstractDriver):
         ## IF
 
         # Concatenate w_name, four spaces, d_name
-	if self.denormalize:
-	    #print(w)
-	    h_data = "%s    %s" % (w["W_NAME"], d["DISTRICT"][0]["D_NAME"])
-	else:
-            h_data = "%s    %s" % (w["W_NAME"], d["D_NAME"])
+        h_data = "%s    %s" % (w["W_NAME"], d["D_NAME"])
 	    
         h = {"H_D_ID": d_id, "H_W_ID": w_id, "H_DATE": h_date, "H_AMOUNT": h_amount, "H_DATA": h_data}
         if self.denormalize:
