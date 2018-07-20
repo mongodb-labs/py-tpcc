@@ -195,11 +195,11 @@ TABLE_INDEXES = {
 }
 
 DENORMALIZED_TABLE_INDEXES = {
-constants.TABLENAME_ITEM:       [    
-         "I_ID",
-        [("I_ID",pymongo.ASCENDING), ("STOCK.S_W_ID",pymongo.ASCENDING), ("STOCK.S_QUANTITY",pymongo.ASCENDING)],
-     ],
-   constants.TABLENAME_WAREHOUSE:  [
+    constants.TABLENAME_ITEM:       [    
+        "I_ID",
+        [("I_ID",pymongo.ASCENDING), ("STOCK.S_W_ID",pymongo.ASCENDING), ("STOCK.S_QUANTITY",pymongo.ASCENDING)]
+    ],
+    constants.TABLENAME_WAREHOUSE:  [
         "W_ID",
 	[("W_ID",pymongo.ASCENDING), ("DISTRICT.D_ID",pymongo.ASCENDING)],
     ],
