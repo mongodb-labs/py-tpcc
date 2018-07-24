@@ -223,8 +223,8 @@ DENORMALIZED_TABLE_INDEXES = {
 ## ==============================================
 class MongodbDriver(AbstractDriver):
     DEFAULT_CONFIG = {
-        "host":             ("The hostname to mongod", "localhost" ),
-        "port":             ("The port number to mongod", 27017 ),
+        "host":             ("The host where mongod is running", "localhost" ),
+        "port":             ("The port number for mongod", 27017 ),
         "name":             ("Collection name", "tpcc"),
         "replicaset":       ("ReplicaSet name -- you can only run transactions on the PRIMARY node in a replicaset", "replset"),
         "denormalize":      ("If set to true, then the data will be denormalized using MongoDB schema design best practices", True),
