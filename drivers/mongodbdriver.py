@@ -702,10 +702,12 @@ class MongodbDriver(AbstractDriver):
         stockInfos = None
         if all_local and False:
             # getStockInfo
-	    if not self.denormalize:
+            if not self.denormalize:
                 allStocks = self.stock.find({"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
                 assert self.get_count(self.stock, {"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, s) == ol_cnt
+
             stockInfos = { }
+	
             if self.denormalize:
                 pass 
             else:
