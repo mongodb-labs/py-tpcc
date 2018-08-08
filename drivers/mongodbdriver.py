@@ -308,21 +308,21 @@ class MongodbDriver(AbstractDriver):
         ## Setup!
         load_indexes = ('execute' in config and not config['execute']) and \
                        ('load' in config and not config['load'])
-	#NOTE: NOT YET IMPLEMENTED
+        #NOTE: NOT YET IMPLEMENTED
 
-	if not self.denormalize:
+        if not self.denormalize:
             for name in constants.ALL_TABLES:
 		self.__dict__[name.lower()] = self.database[name]
 		if load_indexes and name in TABLE_INDEXES:
 		    for index in TABLE_INDEXES[name]:
                 	self.database[name].create_index(index)
-	else:
-	    tables=[constants.TABLENAME_CUSTOMER, constants.TABLENAME_WAREHOUSE, constants.TABLENAME_ITEM,constants.TABLENAME_NEW_ORDER]
+        else:
+            tables=[constants.TABLENAME_CUSTOMER, constants.TABLENAME_WAREHOUSE, constants.TABLENAME_ITEM,constants.TABLENAME_NEW_ORDER]
             for name in tables:
                 self.__dict__[name.lower()] = self.database[name]
                 if load_indexes and name in DENORMALIZED_TABLE_INDEXES:
                     for index in DENORMALIZED_TABLE_INDEXES[name]:
-			#print("CREATING INDEXES FOR", name, index)
+                        #print("CREATING INDEXES FOR", name, index)
                         self.database[name].create_index(index)
                     ## FOR
         ## IF
