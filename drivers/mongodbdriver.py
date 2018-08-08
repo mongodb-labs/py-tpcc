@@ -185,7 +185,7 @@ TABLE_INDEXES = {
         "NO_O_ID",
         "NO_D_ID",
         "NO_W_ID",
-	[("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING)]
+        [("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_ORDER_LINE: [
         "OL_O_ID",
@@ -212,7 +212,7 @@ DENORMALIZED_TABLE_INDEXES = {
         "NO_O_ID",
         "NO_D_ID",
         "NO_W_ID",
-	[("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING)]
+        [("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING)]
     ],
     
 }
@@ -439,7 +439,7 @@ class MongodbDriver(AbstractDriver):
             #print( "Normalized tuple dict:", tuple_dicts)
             self.database[tableName].insert(tuple_dicts)
         ## IF
-
+	
         return
 
     def get_count(self, collection, match={}, session=None):
@@ -484,7 +484,6 @@ class MongodbDriver(AbstractDriver):
 	    del self.w_stock[k]
 	#print("loadingData...")
 		
-
     def loadFinishItem(self):
 	if self.denormalize:
 	    self.loadDataIntoDatabase()
@@ -497,10 +496,9 @@ class MongodbDriver(AbstractDriver):
 	if self.denormalize:
             logging.debug("Pushing %d denormalized CUSTOMER records for WAREHOUSE %d DISTRICT %d into MongoDB" % (len(self.w_customers), w_id, d_id))
             self.database[constants.TABLENAME_CUSTOMER].insert(self.w_customers.values())
-	    self.loadDataIntoDatabase()
+            self.loadDataIntoDatabase()
             self.w_customers.clear()
             self.w_orders.clear()
-
 
     ## ----------------------------------------------
     ## doDelivery
@@ -517,7 +515,6 @@ class MongodbDriver(AbstractDriver):
         for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):
 	    
             if self.denormalize:
-	
 		## getNewOrder
                 #https://stackoverflow.com/questions/6360465/how-to-find-min-value-in-mongodb
                 no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
@@ -532,7 +529,6 @@ class MongodbDriver(AbstractDriver):
                 if o_id != None:
 		    c=self.customer.find_one({"ORDERS.O_ID": o_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_ID": 1, "ORDERS.$": 1}, session=s)
 
-		
                 if c==None:
 		    continue
                 c_id = c["C_ID"]
@@ -557,12 +553,11 @@ class MongodbDriver(AbstractDriver):
                 ## updateOrders + updateCustomer
                 self.customer.update_one({"_id": c['_id'], "ORDERS.O_ID": o_id}, {"$set": {"ORDERS.$.O_CARRIER_ID": o_carrier_id, "ORDERS.$.ORDER_LINE": orderLines}, "$inc": {"C_BALANCE": ol_total}}, session=s)
             else:
-
-            	## getNewOrder
-		#https://stackoverflow.com/questions/6360465/how-to-find-min-value-in-mongodb
-            	no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
-		no_converted_cursor=list(no_cursor)
-            	if len(no_converted_cursor) == 0:
+                ## getNewOrder
+                #https://stackoverflow.com/questions/6360465/how-to-find-min-value-in-mongodb
+                no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
+                no_converted_cursor=list(no_cursor)
+                if len(no_converted_cursor) == 0:
                     ## No orders for this district: skip it. Note: This must be reported if > 1%
                     continue
                 assert len(no_converted_cursor) > 0
@@ -588,8 +583,8 @@ class MongodbDriver(AbstractDriver):
                 ## updateCustomer
                 self.customer.update_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"$inc": {"C_BALANCE": ol_total}}, session=s)
 
-            	## deleteNewOrder
-            	self.new_order.delete_one({"_id": no['_id']}, session=s)
+                ## deleteNewOrder
+                self.new_order.delete_one({"_id": no['_id']}, session=s)
             ## IF
 
             # These must be logged in the "result file" according to TPC-C 2.7.2.2 (page 39)
@@ -611,8 +606,7 @@ class MongodbDriver(AbstractDriver):
         return self.run_transaction_with_retries(self.client, self._doNewOrderTxn, "new order", params)
 
     def _doNewOrderTxn(self, s, params):
-
-	#print(self.w_stock, self.w_items, self.w_warehouses, self.w_districts, self.w_customers)
+        #print(self.w_stock, self.w_items, self.w_warehouses, self.w_districts, self.w_customers)
 
         w_id = params["w_id"]
         d_id = params["d_id"]
@@ -644,17 +638,17 @@ class MongodbDriver(AbstractDriver):
         ## ----------------
         ## Collect Information from WAREHOUSE, DISTRICT, and CUSTOMER
         ## ----------------
-
-	if self.denormalize:
-	    w = self.warehouse.find_one({"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"W_TAX": 1, "DISTRICT.$": 1}, session=s)
-	    assert w
-	    w_tax=w["W_TAX"]
-	    d=w["DISTRICT"][0]
-	    d_tax = d["D_TAX"]
+	
+        if self.denormalize:
+            w = self.warehouse.find_one({"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"W_TAX": 1, "DISTRICT.$": 1}, session=s)
+            assert w
+            w_tax=w["W_TAX"]
+            d=w["DISTRICT"][0]
+            d_tax = d["D_TAX"]
             d_next_o_id = d["D_NEXT_O_ID"]
-	    d["D_NEXT_O_ID"]=d_next_o_id+1
-	    self.warehouse.update_one({"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"$set": {"DISTRICT.$": d}})
-	else:
+            d["D_NEXT_O_ID"]=d_next_o_id+1
+            self.warehouse.update_one({"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"$set": {"DISTRICT.$": d}})
+        else:
             # getWarehouseTaxRate
             w = self.warehouse.find_one({"W_ID": w_id}, {"W_TAX": 1}, session=s)
             assert w
@@ -712,10 +706,10 @@ class MongodbDriver(AbstractDriver):
 		allStocks = self.stock.find({"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
                 assert self.get_count(self.stock, {"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, s) == ol_cnt
             stockInfos = { }
-	    if self.denormalize:
-	       pass 
-	    else:
-		for si in allStocks:
+            if self.denormalize:
+                pass 
+            else:
+                for si in allStocks:
                     stockInfos["S_I_ID"] = si # HACK
             ## IF
         ## IF
@@ -735,8 +729,7 @@ class MongodbDriver(AbstractDriver):
             i_name = itemInfo["I_NAME"]
             i_data = itemInfo["I_DATA"]
             i_price = itemInfo["I_PRICE"]
-
-            
+      
             if self.denormalize:
                 allStock = self.item.find_one( {"I_ID": ol_i_id, "STOCK.S_W_ID": w_id}, {"STOCK.$": 1}, session=s)
                 si = allStock["STOCK"][0]
@@ -837,7 +830,6 @@ class MongodbDriver(AbstractDriver):
             search_fields["C_ID"] = c_id
             c = self.customer.find_one(search_fields, return_fields, session=s)
             assert c
-
         else:
             # getCustomersByLastName
             # Get the midpoint customer's id
@@ -997,7 +989,7 @@ class MongodbDriver(AbstractDriver):
         threshold = params["threshold"]
         # getOId
         if self.denormalize:
-	    dis_name=constants.TABLENAME_DISTRICT
+            dis_name=constants.TABLENAME_DISTRICT
             d = self.warehouse.find_one({dis_name: {"$elemMatch": {"D_W_ID": w_id, "D_ID": d_id}}}, {"DISTRICT.$": 1}, session=s)[dis_name][0]
 	    if d==None:
 		new_w=self.warehouse.find_one({"W_ID": w_id},session=s)
@@ -1007,7 +999,7 @@ class MongodbDriver(AbstractDriver):
 		    except:
 			print("DIDNT HAVE ATTRIBUTES",dis)
         else:
-	    d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NEXT_O_ID": 1}, session=s)
+            d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NEXT_O_ID": 1}, session=s)
         assert d
         o_id = d["D_NEXT_O_ID"]
 
