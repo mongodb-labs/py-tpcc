@@ -210,7 +210,7 @@ DENORMALIZED_TABLE_INDEXES = {
     ],
     constants.TABLENAME_NEW_ORDER:  [
         "NO_O_ID",
-	"NO_D_ID",
+        "NO_D_ID",
         "NO_W_ID",
 	[("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING)]
     ],
@@ -330,8 +330,6 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     ## loadTuples
     ## ----------------------------------------------
-
-
     def loadTuples(self, tableName, tuples):
         if len(tuples) == 0: return
         logging.info("Loading %d tuples for tableName %s" % (len(tuples), tableName))
@@ -405,8 +403,7 @@ class MongodbDriver(AbstractDriver):
 		    k=t[0]
 		    if not k in self.w_stock: self.w_stock[k]=[]
 		    self.w_stock[k].append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
-                ## FOR
-		
+                ## FOR		
            		    
             ## Otherwise we have to find the CUSTOMER record for the other tables
             ## and append ourselves to them
@@ -460,7 +457,6 @@ class MongodbDriver(AbstractDriver):
         return result[0]['count']
 
 
-
     def loadDataIntoDatabase(self):
 	toDel=[]
 	for w in self.w_warehouses:
@@ -489,10 +485,6 @@ class MongodbDriver(AbstractDriver):
 	#print("loadingData...")
 		
 
-
-
-
-
     def loadFinishItem(self):
 	if self.denormalize:
 	    self.loadDataIntoDatabase()
@@ -508,9 +500,6 @@ class MongodbDriver(AbstractDriver):
 	    self.loadDataIntoDatabase()
             self.w_customers.clear()
             self.w_orders.clear()
-
-    
-
 
 
     ## ----------------------------------------------
@@ -539,8 +528,8 @@ class MongodbDriver(AbstractDriver):
                 assert len(no_converted_cursor) > 0
                 no=no_converted_cursor[0]
                 o_id = no["NO_O_ID"]
-		c=None
-		if o_id != None:
+                c=None
+                if o_id != None:
 		    c=self.customer.find_one({"ORDERS.O_ID": o_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_ID": 1, "ORDERS.$": 1}, session=s)
 
 		
@@ -550,8 +539,8 @@ class MongodbDriver(AbstractDriver):
 
                 ## sumOLAmount + updateOrderLine
                 ol_total = 0
-		o=c["ORDERS"][0]
-		o_id=o["O_ID"]
+                o=c["ORDERS"][0]
+                o_id=o["O_ID"]
                 orderLines = o["ORDER_LINE"]
                 for ol in orderLines:
                     ol_total += ol["OL_AMOUNT"]
@@ -576,9 +565,9 @@ class MongodbDriver(AbstractDriver):
             	if len(no_converted_cursor) == 0:
                     ## No orders for this district: skip it. Note: This must be reported if > 1%
                     continue
-            	assert len(no_converted_cursor) > 0
-		no=no_converted_cursor[0]
-            	o_id = no["NO_O_ID"]
+                assert len(no_converted_cursor) > 0
+                no=no_converted_cursor[0]
+                o_id = no["NO_O_ID"]
 
                 ## getCId
                 o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"O_C_ID": 1}, session=s)
@@ -714,7 +703,7 @@ class MongodbDriver(AbstractDriver):
         ## OPTIMIZATION:
         ## If all of the items are at the same warehouse, then we'll issue a single
         ## request to get their information
-	## NOTE: NOT IMPLEMENTED
+        ## NOTE: NOT IMPLEMENTED
         ## ----------------
         stockInfos = None
         if all_local and False:
@@ -748,10 +737,10 @@ class MongodbDriver(AbstractDriver):
             i_price = itemInfo["I_PRICE"]
 
             
-	    if self.denormalize:
-		allStock = self.item.find_one( {"I_ID": ol_i_id, "STOCK.S_W_ID": w_id}, {"STOCK.$": 1}, session=s)
-		si = allStock["STOCK"][0]
-	    else:
+            if self.denormalize:
+                allStock = self.item.find_one( {"I_ID": ol_i_id, "STOCK.S_W_ID": w_id}, {"STOCK.$": 1}, session=s)
+                si = allStock["STOCK"][0]
+            else:
                 si = self.stock.find_one({"S_I_ID": ol_i_id, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
             assert si, "Failed to find S_I_ID: %d\n%s" % (ol_i_id, pformat(itemInfo))
 
@@ -773,7 +762,7 @@ class MongodbDriver(AbstractDriver):
             if ol_supply_w_id != w_id: s_remote_cnt += 1
 
             # updateStock
-	    if self.denormalize:
+            if self.denormalize:
 		self.item.update_one({"I_ID": ol_i_id, "STOCK.S_W_ID": w_id}, {"$set": {"STOCK.$.S_QUANTITY": s_quantity, "STOCK.$.S_YTD": s_ytd, "STOCK.$.S_ORDER_CNT": s_order_cnt, "STOCK.$.S_REMOTE_CNT": s_remote_cnt}}, session=s)
             else:
 		self.stock.update_one(si, {"$set": {"S_QUANTITY": s_quantity, "S_YTD": s_ytd, "S_ORDER_CNT": s_order_cnt, "S_REMOTE_CNT": s_remote_cnt}}, session=s)
@@ -809,9 +798,9 @@ class MongodbDriver(AbstractDriver):
         #print "d_tax:", d_tax, type(d_tax)
         total *= (1 - c_discount) * (1 + w_tax + d_tax)
 
-	if self.denormalize: #just added this, not sure what the functionality was before
+        if self.denormalize: #just added this, not sure what the functionality was before
             # createOrder
-	    #print(o)
+            #print(o)
             self.customer.update_one({"_id": c["_id"]}, {"$push": {"ORDERS": o}}, session=s)
 
         ## Pack up values the client is missing (see TPC-C 2.4.3.5)
@@ -945,14 +934,14 @@ class MongodbDriver(AbstractDriver):
         # updateWarehouseBalance
         self.warehouse.update_one({"_id": w["_id"]}, {"$inc": {"H_AMOUNT": h_amount}}, session=s)
 
-	if self.denormalize:
+        if self.denormalize:
             # getDistrict
             d = self.warehouse.find_one( {"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"DISTRICT.$": 1}, session=s)["DISTRICT"][0]
             assert d
 	
             # updateDistrictBalance
             self.warehouse.update_one({"W_ID": w_id, "DISTRICT.D_ID": d_id},  {"$inc": {"DISTRICT.$.D_YTD": h_amount}}, session=s)
-	else:
+        else:
 	    # getDistrict
             d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1}, session=s)
             assert d
@@ -1007,7 +996,7 @@ class MongodbDriver(AbstractDriver):
         d_id = params["d_id"]
         threshold = params["threshold"]
         # getOId
-	if self.denormalize:
+        if self.denormalize:
 	    dis_name=constants.TABLENAME_DISTRICT
             d = self.warehouse.find_one({dis_name: {"$elemMatch": {"D_W_ID": w_id, "D_ID": d_id}}}, {"DISTRICT.$": 1}, session=s)[dis_name][0]
 	    if d==None:
@@ -1017,7 +1006,7 @@ class MongodbDriver(AbstractDriver):
 		        print("HAD ATTRIBUTES", dis["D_W_ID"],dis["D_ID"])
 		    except:
 			print("DIDNT HAVE ATTRIBUTES",dis)
-	else:
+        else:
 	    d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NEXT_O_ID": 1}, session=s)
         assert d
         o_id = d["D_NEXT_O_ID"]
@@ -1040,29 +1029,29 @@ class MongodbDriver(AbstractDriver):
         for ol in orderLines:
             ol_ids.add(ol["OL_I_ID"])
         ## FOR
-	if self.denormalize:
+        if self.denormalize:
 	    result = self.get_count(self.item,{"I_ID": {"$in": list(ol_ids)}, "STOCK": {"$elemMatch": {"S_W_ID": w_id, "S_QUANTITY": {"$lt": threshold}}}}, s)
-	else:
+        else:
             result = self.get_count(self.stock,
                                 {"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}}, s)
 
         return int(result)
 
     def run_transaction(self, client, txn_callback, session, name, params):
-            try:
-                # this implicitly commits on success
-                with session.start_transaction():
-                    return (True, txn_callback(session, params))
-            except pymongo.errors.OperationFailure as exc:
-                if exc.code in (24, 112, 244):  # LockTimeout, WriteConflict, TransactionAborted
-                    logging.debug("OperationFailure with error code: %d during operation: %s" % (exc.code, name))
-                    return (False, None)
-                print "Failed with unknown OperationFailure: %d" % exc.code
-		print(exc.details)
-                raise
-            except pymongo.errors.ConnectionFailure:
-                print "ConnectionFailure during %s: " % name
+        try:
+            # this implicitly commits on success
+            with session.start_transaction():
+                return (True, txn_callback(session, params))
+        except pymongo.errors.OperationFailure as exc:
+            if exc.code in (24, 112, 244):  # LockTimeout, WriteConflict, TransactionAborted
+                logging.debug("OperationFailure with error code: %d during operation: %s" % (exc.code, name))
                 return (False, None)
+            print "Failed with unknown OperationFailure: %d" % exc.code
+            print(exc.details)
+            raise
+        except pymongo.errors.ConnectionFailure:
+            print "ConnectionFailure during %s: " % name
+            return (False, None)
 
     # Should we retry txns within the same session or start a new one?
     def run_transaction_with_retries(self, client, txn_callback, name, params):
