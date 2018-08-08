@@ -468,20 +468,20 @@ class MongodbDriver(AbstractDriver):
 		self.database[constants.TABLENAME_WAREHOUSE].update_one({"W_ID": w_id}, {"$push": {constants.TABLENAME_DISTRICT: {"$each": self.w_districts[w_id]}}})
 		#print(w_id, self.w_districts[w_id])
 	        toDel.append(w_id)
-	for k in toDel:
-	   del self.w_districts[k]
+        for k in toDel:
+            del self.w_districts[k]
 
 	toDel=[] 
-	for item in self.w_items:
-	    self.database[constants.TABLENAME_ITEM].insert(self.w_items[item])
-	self.w_items.clear()
-	for item_id in self.w_stock:
-	    item=self.database[constants.TABLENAME_ITEM].find_one({"I_ID": item_id})
-	    if item != None:
-		self.database[constants.TABLENAME_ITEM].update_one({"I_ID": item_id}, {"$push": {constants.TABLENAME_STOCK: {"$each": self.w_stock[item_id]}}})
-		toDel.append(item_id)
-	for k in toDel:
-	    del self.w_stock[k]
+        for item in self.w_items:
+            self.database[constants.TABLENAME_ITEM].insert(self.w_items[item])
+        self.w_items.clear()
+        for item_id in self.w_stock:
+            item=self.database[constants.TABLENAME_ITEM].find_one({"I_ID": item_id})
+            if item != None:
+                self.database[constants.TABLENAME_ITEM].update_one({"I_ID": item_id}, {"$push": {constants.TABLENAME_STOCK: {"$each": self.w_stock[item_id]}}})
+                toDel.append(item_id)
+        for k in toDel:
+            del self.w_stock[k]
 	#print("loadingData...")
 		
     def loadFinishItem(self):
@@ -515,7 +515,7 @@ class MongodbDriver(AbstractDriver):
         for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):
 	    
             if self.denormalize:
-		## getNewOrder
+                ## getNewOrder
                 #https://stackoverflow.com/questions/6360465/how-to-find-min-value-in-mongodb
                 no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
                 no_converted_cursor=list(no_cursor)
