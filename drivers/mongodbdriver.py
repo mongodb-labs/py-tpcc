@@ -235,10 +235,10 @@ class MongodbDriver(AbstractDriver):
         constants.TABLENAME_ORDERS,
         constants.TABLENAME_ORDER_LINE,
         constants.TABLENAME_HISTORY,
-	constants.TABLENAME_ITEM,
-	constants.TABLENAME_STOCK,
-	constants.TABLENAME_WAREHOUSE,
-	constants.TABLENAME_DISTRICT,
+        constants.TABLENAME_ITEM,
+        constants.TABLENAME_STOCK,
+        constants.TABLENAME_WAREHOUSE,
+        constants.TABLENAME_DISTRICT,
     ]
 
 
@@ -246,15 +246,15 @@ class MongodbDriver(AbstractDriver):
         super(MongodbDriver, self).__init__("mongodb", ddl)
         self.database = None
         self.client = None
-	self.executed=False
+        self.executed=False
         self.session_opts = { }
         self.client_opts = { }
         self.w_customers = { }
         self.w_orders = { }
-	self.w_warehouses = { }
-	self.w_districts = { }
-	self.w_stock = { }
-	self.w_items = { }
+        self.w_warehouses = { }
+        self.w_districts = { }
+        self.w_stock = { }
+        self.w_items = { }
 
         ## Create member mapping to collections
         for name in constants.ALL_TABLES:
