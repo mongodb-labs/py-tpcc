@@ -260,6 +260,7 @@ class MongodbDriver(AbstractDriver):
         ## Create member mapping to collections
         for name in constants.ALL_TABLES:
             self.__dict__[name.lower()] = None
+    ## DEF
 
 
     ## ----------------------------------------------
@@ -267,6 +268,7 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     def makeDefaultConfig(self):
         return MongodbDriver.DEFAULT_CONFIG
+    ## DEF
 
 
     ## ----------------------------------------------
@@ -300,6 +302,7 @@ class MongodbDriver(AbstractDriver):
         self.denormalize = eval(config['denormalize'])
 
         if self.denormalize: logging.debug("Using denormalized data model")
+
         if config["reset"]:
             logging.debug("Deleting database '%s'" % self.database.name)
             for name in constants.ALL_TABLES:
@@ -335,6 +338,7 @@ class MongodbDriver(AbstractDriver):
                 ## IF
             ## FOR
         ## IF
+    ## DEF
 
 
     ## ----------------------------------------------
@@ -454,6 +458,7 @@ class MongodbDriver(AbstractDriver):
         ## IF
 	
         return
+    ## DEF
 
 
     def get_count(self, collection, match={}, session=None):
@@ -470,6 +475,7 @@ class MongodbDriver(AbstractDriver):
         if not result:
             return 0
         return result[0]['count']
+    ## DEF
 
 
     def loadDataIntoDatabase(self):
@@ -511,16 +517,19 @@ class MongodbDriver(AbstractDriver):
             del self.w_stock[k]
 
 	#print("loadingData...")
+    ## DEF
 
 		
     def loadFinishItem(self):
 	if self.denormalize:
 	    self.loadDataIntoDatabase()
+    ## DEF
 
 
     def loadFinishWarehouse(self, w_id):
 	if self.denormalize:
 	    self.loadDataIntoDatabase()
+    ## DEF
 
 
     def loadFinishDistrict(self, w_id, d_id):
@@ -531,6 +540,7 @@ class MongodbDriver(AbstractDriver):
             self.w_customers.clear()
             self.w_orders.clear()
         ## IF
+    ## DEF
 
 
     ## ----------------------------------------------
@@ -538,6 +548,7 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     def doDelivery(self, params):
         return self.run_transaction_with_retries(self.client, self._doDeliveryTxn, "delivery", params)
+    ## DEF
 
 
     def _doDeliveryTxn(self, s, params):
@@ -641,6 +652,7 @@ class MongodbDriver(AbstractDriver):
         ## FOR
 
         return result
+    ## DEF
 
 
     ## ----------------------------------------------
@@ -648,6 +660,7 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     def doNewOrder(self, params):
         return self.run_transaction_with_retries(self.client, self._doNewOrderTxn, "new order", params)
+    ## DEF
 
 
     def _doNewOrderTxn(self, s, params):
@@ -856,6 +869,7 @@ class MongodbDriver(AbstractDriver):
         misc = [ (w_tax, d_tax, d_next_o_id, total) ]
 
         return [ c, misc, item_data ]
+    ## DEF
 
 
     ## ----------------------------------------------
@@ -863,6 +877,7 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     def doOrderStatus(self, params):
         return self.run_transaction_with_retries(self.client, self._doOrderStatusTxn, "order status", params)
+    ## DEF
 
 
     def _doOrderStatusTxn(self, s, params):
@@ -926,6 +941,7 @@ class MongodbDriver(AbstractDriver):
         ## IF
 
         return [ c, order, orderLines ]
+    ## DEF
 
 
     ## ----------------------------------------------
@@ -933,6 +949,7 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     def doPayment(self, params):
         return self.run_transaction_with_retries(self.client, self._doPaymentTxn, "payment", params)
+    ## DEF
 
 
     def _doPaymentTxn(self, s, params):
@@ -1047,6 +1064,7 @@ class MongodbDriver(AbstractDriver):
 
         # Hand back all the warehouse, district, and customer data
         return [ w, d, c ]
+    ## DEF
 
 
     ## ----------------------------------------------
@@ -1054,6 +1072,7 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     def doStockLevel(self, params):
         return self.run_transaction_with_retries(self.client, self._doStockLevelTxn, "stock level", params)
+    ## DEF
 
 
     def _doStockLevelTxn(self, s, params):
@@ -1113,6 +1132,7 @@ class MongodbDriver(AbstractDriver):
         ## IF
 
         return int(result)
+    ## DEF
 
 
     def run_transaction(self, client, txn_callback, session, name, params):
@@ -1130,6 +1150,8 @@ class MongodbDriver(AbstractDriver):
         except pymongo.errors.ConnectionFailure:
             print "ConnectionFailure during %s: " % name
             return (False, None)
+        ## TRY
+    ## DEF
 
 
     # Should we retry txns within the same session or start a new one?
@@ -1149,5 +1171,6 @@ class MongodbDriver(AbstractDriver):
                 sleep(txn_counter * .1)
                 logging.debug("txn retry number for %s: %d" % (name, txn_counter))
             ## WHILE
+    ## DEF
 
 ## CLASS
