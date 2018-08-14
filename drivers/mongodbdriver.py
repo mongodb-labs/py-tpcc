@@ -363,6 +363,7 @@ class MongodbDriver(AbstractDriver):
                     key = tuple(t[:3]) # C_ID, D_ID, W_ID
                     self.w_customers[key] = dict(map(lambda i: (columns[i], t[i]), num_columns))
                 ## FOR
+            ## IF
 
             ## If this is an ORDER_LINE record, then we need to stick it inside of the
             ## right ORDERS record
@@ -493,6 +494,7 @@ class MongodbDriver(AbstractDriver):
 		self.database[constants.TABLENAME_WAREHOUSE].update_one({"W_ID": w_id}, {"$push": {constants.TABLENAME_DISTRICT: {"$each": self.w_districts[w_id]}}})
 		#print(w_id, self.w_districts[w_id])
 	        toDel.append(w_id)
+            ## IF
         ## FOR
 
         for k in toDel:
@@ -970,7 +972,6 @@ class MongodbDriver(AbstractDriver):
             search_fields["C_ID"] = c_id
             c = self.customer.find_one(search_fields, return_fields, session=s)
             assert c
-
         else:
             # getCustomersByLastName
             # Get the midpoint customer's id
