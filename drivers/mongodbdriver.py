@@ -202,7 +202,7 @@ DENORMALIZED_TABLE_INDEXES = {
     ],
     constants.TABLENAME_WAREHOUSE:  [
         "W_ID",
-	[("W_ID",pymongo.ASCENDING), ("DISTRICT.D_ID",pymongo.ASCENDING)],
+        [("W_ID",pymongo.ASCENDING), ("DISTRICT.D_ID",pymongo.ASCENDING)],
     ],
     constants.TABLENAME_CUSTOMER:   [
         [("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("C_LAST", pymongo.ASCENDING)],
@@ -320,10 +320,10 @@ class MongodbDriver(AbstractDriver):
 
         if not self.denormalize:
             for name in constants.ALL_TABLES:
-		self.__dict__[name.lower()] = self.database[name]
-		if load_indexes and name in TABLE_INDEXES:
-		    for index in TABLE_INDEXES[name]:
-                	self.database[name].create_index(index)
+                self.__dict__[name.lower()] = self.database[name]
+                if load_indexes and name in TABLE_INDEXES:
+                    for index in TABLE_INDEXES[name]:
+                        self.database[name].create_index(index)
                 ## IF
             ## FOR
         else:
@@ -379,8 +379,8 @@ class MongodbDriver(AbstractDriver):
                     o[tableName].append(dict(map(lambda i: (columns[i], t[i]), num_columns[4:])))
                 ## FOR
 
-	    elif tableName == constants.TABLENAME_NEW_ORDER:
-		for t in tuples:
+            elif tableName == constants.TABLENAME_NEW_ORDER:
+                for t in tuples:
                     o_key = tuple(t[:3]) # O_ID, O_D_ID, O_W_ID
                     (c_key, o_idx) = self.w_orders[o_key]
                     c = self.w_customers[c_key]
@@ -389,37 +389,37 @@ class MongodbDriver(AbstractDriver):
                     o = c[constants.TABLENAME_ORDERS][o_idx]
                     if not tableName in o: o[tableName] = True
                 ## FOR
-		
-	    elif tableName == constants.TABLENAME_WAREHOUSE:
-		for t in tuples:
-		    k=t[0]
-		    d=dict(map(lambda i: (columns[i], t[i]), num_columns))
-		    if not k in self.w_warehouses: self.w_warehouses[k]=[]
-		    self.w_warehouses[k].append(d)
+                
+            elif tableName == constants.TABLENAME_WAREHOUSE:
+                for t in tuples:
+                    k=t[0]
+                    d=dict(map(lambda i: (columns[i], t[i]), num_columns))
+                    if not k in self.w_warehouses: self.w_warehouses[k]=[]
+                    self.w_warehouses[k].append(d)
                 ## FOR
-		
-	    elif tableName == constants.TABLENAME_DISTRICT:
-		for t in tuples:
-		    k=t[1]
-		    if not k in self.w_districts: self.w_districts[k]=[]
-		    d=dict(map(lambda i: (columns[i], t[i]), num_columns))
-		    self.w_districts[k].append(d)
+                
+            elif tableName == constants.TABLENAME_DISTRICT:
+                for t in tuples:
+                    k=t[1]
+                    if not k in self.w_districts: self.w_districts[k]=[]
+                    d=dict(map(lambda i: (columns[i], t[i]), num_columns))
+                    self.w_districts[k].append(d)
                 ## FOR
-		
+                
             elif tableName == constants.TABLENAME_ITEM:
-		for t in tuples:
-		    k=t[0]
-		    if not k in self.w_items: self.w_items[k] = []
-		    self.w_items[k].append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
+                for t in tuples:
+                    k=t[0]
+                    if not k in self.w_items: self.w_items[k] = []
+                    self.w_items[k].append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
                 ## FOR
-		
+                
             elif tableName == constants.TABLENAME_STOCK:
-		for t in tuples:
-		    k=t[0]
-		    if not k in self.w_stock: self.w_stock[k]=[]
-		    self.w_stock[k].append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
-                ## FOR		
-           		    
+                for t in tuples:
+                    k=t[0]
+                    if not k in self.w_stock: self.w_stock[k]=[]
+                    self.w_stock[k].append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
+                ## FOR                
+                               
             ## Otherwise we have to find the CUSTOMER record for the other tables
             ## and append ourselves to them
             else:
@@ -457,7 +457,7 @@ class MongodbDriver(AbstractDriver):
             #print( "Normalized tuple dict:", tuple_dicts)
             self.database[tableName].insert(tuple_dicts)
         ## IF
-	
+        
         return
     ## DEF
 
@@ -480,20 +480,20 @@ class MongodbDriver(AbstractDriver):
 
 
     def loadDataIntoDatabase(self):
-	toDel=[]
+        toDel=[]
 
-	for w in self.w_warehouses:
-	    #print(self.w_warehouses[w])
-	    self.database[constants.TABLENAME_WAREHOUSE].insert(self.w_warehouses[w])
+        for w in self.w_warehouses:
+            #print(self.w_warehouses[w])
+            self.database[constants.TABLENAME_WAREHOUSE].insert(self.w_warehouses[w])
         ## FOR
 
-	self.w_warehouses.clear()
+        self.w_warehouses.clear()
 
-	for w_id in self.w_districts:
-	    if self.database[constants.TABLENAME_WAREHOUSE].find_one({"W_ID": w_id}) != None:
-		self.database[constants.TABLENAME_WAREHOUSE].update_one({"W_ID": w_id}, {"$push": {constants.TABLENAME_DISTRICT: {"$each": self.w_districts[w_id]}}})
-		#print(w_id, self.w_districts[w_id])
-	        toDel.append(w_id)
+        for w_id in self.w_districts:
+            if self.database[constants.TABLENAME_WAREHOUSE].find_one({"W_ID": w_id}) != None:
+                self.database[constants.TABLENAME_WAREHOUSE].update_one({"W_ID": w_id}, {"$push": {constants.TABLENAME_DISTRICT: {"$each": self.w_districts[w_id]}}})
+                #print(w_id, self.w_districts[w_id])
+                toDel.append(w_id)
             ## IF
         ## FOR
 
@@ -518,24 +518,24 @@ class MongodbDriver(AbstractDriver):
         for k in toDel:
             del self.w_stock[k]
 
-	#print("loadingData...")
+        #print("loadingData...")
     ## DEF
 
-		
+                
     def loadFinishItem(self):
-	if self.denormalize:
-	    self.loadDataIntoDatabase()
+        if self.denormalize:
+            self.loadDataIntoDatabase()
     ## DEF
 
 
     def loadFinishWarehouse(self, w_id):
-	if self.denormalize:
-	    self.loadDataIntoDatabase()
+        if self.denormalize:
+            self.loadDataIntoDatabase()
     ## DEF
 
 
     def loadFinishDistrict(self, w_id, d_id):
-	if self.denormalize:
+        if self.denormalize:
             logging.debug("Pushing %d denormalized CUSTOMER records for WAREHOUSE %d DISTRICT %d into MongoDB" % (len(self.w_customers), w_id, d_id))
             self.database[constants.TABLENAME_CUSTOMER].insert(self.w_customers.values())
             self.loadDataIntoDatabase()
@@ -577,10 +577,10 @@ class MongodbDriver(AbstractDriver):
                 c=None
 
                 if o_id != None:
-		    c=self.customer.find_one({"ORDERS.O_ID": o_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_ID": 1, "ORDERS.$": 1}, session=s)
+                    c=self.customer.find_one({"ORDERS.O_ID": o_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_ID": 1, "ORDERS.$": 1}, session=s)
 
                 if c==None:
-		    continue
+                    continue
 
                 c_id = c["C_ID"]
 
@@ -698,7 +698,7 @@ class MongodbDriver(AbstractDriver):
         ## ----------------
         ## Collect Information from WAREHOUSE, DISTRICT, and CUSTOMER
         ## ----------------
-	
+        
         if self.denormalize:
             w = self.warehouse.find_one({"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"W_TAX": 1, "DISTRICT.$": 1}, session=s)
             assert w
@@ -736,7 +736,7 @@ class MongodbDriver(AbstractDriver):
         o_carrier_id = constants.NULL_CARRIER_ID
 
         # createNewOrder
-	
+        
         self.new_order.insert_one({"NO_O_ID": d_next_o_id, "NO_D_ID": d_id, "NO_W_ID": w_id}, session=s)
 
         o = {"O_ID": d_next_o_id, "O_ENTRY_D": o_entry_d, "O_CARRIER_ID": o_carrier_id, "O_OL_CNT": ol_cnt, "O_ALL_LOCAL": all_local}
@@ -768,7 +768,7 @@ class MongodbDriver(AbstractDriver):
             ## IF
 
             stockInfos = { }
-	
+        
             if self.denormalize:
                 pass 
             else:
@@ -823,9 +823,9 @@ class MongodbDriver(AbstractDriver):
 
             # updateStock
             if self.denormalize:
-		self.item.update_one({"I_ID": ol_i_id, "STOCK.S_W_ID": w_id}, {"$set": {"STOCK.$.S_QUANTITY": s_quantity, "STOCK.$.S_YTD": s_ytd, "STOCK.$.S_ORDER_CNT": s_order_cnt, "STOCK.$.S_REMOTE_CNT": s_remote_cnt}}, session=s)
+                self.item.update_one({"I_ID": ol_i_id, "STOCK.S_W_ID": w_id}, {"$set": {"STOCK.$.S_QUANTITY": s_quantity, "STOCK.$.S_YTD": s_ytd, "STOCK.$.S_ORDER_CNT": s_order_cnt, "STOCK.$.S_REMOTE_CNT": s_remote_cnt}}, session=s)
             else:
-		self.stock.update_one(si, {"$set": {"S_QUANTITY": s_quantity, "S_YTD": s_ytd, "S_ORDER_CNT": s_order_cnt, "S_REMOTE_CNT": s_remote_cnt}}, session=s)
+                self.stock.update_one(si, {"$set": {"S_QUANTITY": s_quantity, "S_YTD": s_ytd, "S_ORDER_CNT": s_order_cnt, "S_REMOTE_CNT": s_remote_cnt}}, session=s)
             ## IF
 
             if i_data.find(constants.ORIGINAL_STRING) != -1 and s_data.find(constants.ORIGINAL_STRING) != -1:
@@ -1016,11 +1016,11 @@ class MongodbDriver(AbstractDriver):
             # getDistrict
             d = self.warehouse.find_one( {"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"DISTRICT.$": 1}, session=s)["DISTRICT"][0]
             assert d
-	
+        
             # updateDistrictBalance
             self.warehouse.update_one({"W_ID": w_id, "DISTRICT.D_ID": d_id},  {"$inc": {"DISTRICT.$.D_YTD": h_amount}}, session=s)
         else:
-	    # getDistrict
+            # getDistrict
             d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1}, session=s)
             assert d
 
@@ -1041,7 +1041,7 @@ class MongodbDriver(AbstractDriver):
 
         # Concatenate w_name, four spaces, d_name
         h_data = "%s    %s" % (w["W_NAME"], d["D_NAME"])
-	    
+            
         h = {"H_D_ID": d_id, "H_W_ID": w_id, "H_DATE": h_date, "H_AMOUNT": h_amount, "H_DATA": h_data}
 
         if self.denormalize:
@@ -1086,14 +1086,14 @@ class MongodbDriver(AbstractDriver):
             dis_name=constants.TABLENAME_DISTRICT
             d = self.warehouse.find_one({dis_name: {"$elemMatch": {"D_W_ID": w_id, "D_ID": d_id}}}, {"DISTRICT.$": 1}, session=s)[dis_name][0]
 
-	    if d==None:
-		new_w=self.warehouse.find_one({"W_ID": w_id},session=s)
+            if d==None:
+                new_w=self.warehouse.find_one({"W_ID": w_id},session=s)
 
-		for dis in new_w["DISTRICT"]:
-		    try:
-		        print("HAD ATTRIBUTES", dis["D_W_ID"],dis["D_ID"])
-		    except:
-			print("DIDNT HAVE ATTRIBUTES",dis)
+                for dis in new_w["DISTRICT"]:
+                    try:
+                        print("HAD ATTRIBUTES", dis["D_W_ID"],dis["D_ID"])
+                    except:
+                        print("DIDNT HAVE ATTRIBUTES",dis)
                 ## FOR
             ## IF
         else:
@@ -1126,7 +1126,7 @@ class MongodbDriver(AbstractDriver):
         ## FOR
 
         if self.denormalize:
-	    result = self.get_count(self.item,{"I_ID": {"$in": list(ol_ids)}, "STOCK": {"$elemMatch": {"S_W_ID": w_id, "S_QUANTITY": {"$lt": threshold}}}}, s)
+            result = self.get_count(self.item,{"I_ID": {"$in": list(ol_ids)}, "STOCK": {"$elemMatch": {"S_W_ID": w_id, "S_QUANTITY": {"$lt": threshold}}}}, s)
         else:
             result = self.get_count(self.stock,
                                 {"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}}, s)
