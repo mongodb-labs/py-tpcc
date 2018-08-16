@@ -226,7 +226,7 @@ class MongodbDriver(AbstractDriver):
     DEFAULT_CONFIG = {
         "host":             ("The host where mongod is running", "localhost" ),
         "port":             ("The port number for mongod", 27017 ),
-        "name":             ("Collection name", "tpcc"),
+        "name":             ("Database name", "tpcc"),
         "replicaset":       ("ReplicaSet name -- you can only run transactions on the PRIMARY node in a replicaset", "replset"),
         "denormalize":      ("If set to true, then the data will be denormalized using MongoDB schema design best practices", True),
         #"secondary_reads":  ("If set to true, then we will perform causal reads against secondaries when possible", False)
@@ -287,11 +287,12 @@ class MongodbDriver(AbstractDriver):
         #self.secondary_reads = eval(config['secondary_reads'])
         self.secondary_reads = False
 
-        # Let's explicitly enable causal in all cases, just to be safe
-        self.session_opts["causal_consistency"] = True
+        self.session_opts["causal_consistency"] = False
 
         if self.secondary_reads:
-            self.client_opts["read_preference"] = "secondaryPreferred"
+            self.client_opts["read_preference"] = "nearest"
+            # Let's explicitly enable causal if secondary reads are allowed
+            self.session_opts["causal_consistency"] = True
         else:
             self.client_opts["read_preference"] = "primary"
         ## IF
@@ -397,7 +398,7 @@ class MongodbDriver(AbstractDriver):
                     if not k in self.w_warehouses: self.w_warehouses[k]=[]
                     self.w_warehouses[k].append(d)
                 ## FOR
-                
+
             elif tableName == constants.TABLENAME_DISTRICT:
                 for t in tuples:
                     k=t[1]
@@ -454,7 +455,6 @@ class MongodbDriver(AbstractDriver):
                 tuple_dicts.append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
             ## FOR
 
-            #print( "Normalized tuple dict:", tuple_dicts)
             self.database[tableName].insert(tuple_dicts)
         ## IF
         
@@ -490,11 +490,9 @@ class MongodbDriver(AbstractDriver):
         self.w_warehouses.clear()
 
         for w_id in self.w_districts:
-            if self.database[constants.TABLENAME_WAREHOUSE].find_one({"W_ID": w_id}) != None:
-                self.database[constants.TABLENAME_WAREHOUSE].update_one({"W_ID": w_id}, {"$push": {constants.TABLENAME_DISTRICT: {"$each": self.w_districts[w_id]}}})
-                #print(w_id, self.w_districts[w_id])
-                toDel.append(w_id)
-            ## IF
+            self.database[constants.TABLENAME_WAREHOUSE].update_one({"W_ID": w_id}, {"$push": {constants.TABLENAME_DISTRICT: {"$each": self.w_districts[w_id]}}})
+            #print(w_id, self.w_districts[w_id])
+            toDel.append(w_id)
         ## FOR
 
         for k in toDel:
@@ -508,11 +506,8 @@ class MongodbDriver(AbstractDriver):
         self.w_items.clear()
 
         for item_id in self.w_stock:
-            item=self.database[constants.TABLENAME_ITEM].find_one({"I_ID": item_id})
-            if item != None:
-                self.database[constants.TABLENAME_ITEM].update_one({"I_ID": item_id}, {"$push": {constants.TABLENAME_STOCK: {"$each": self.w_stock[item_id]}}})
-                toDel.append(item_id)
-            ## IF
+            self.database[constants.TABLENAME_ITEM].update_one({"I_ID": item_id}, {"$push": {constants.TABLENAME_STOCK: {"$each": self.w_stock[item_id]}}})
+            toDel.append(item_id)
         ## FOR
 
         for k in toDel:
@@ -684,10 +679,10 @@ class MongodbDriver(AbstractDriver):
         ## http://stackoverflow.com/q/3844931/
         all_local = (not i_w_ids or [w_id] * len(i_w_ids) == i_w_ids)
 
-        items = self.item.find({"I_ID": {"$in": i_ids}}, {"I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1}, session=s)
+        items = list(self.item.find({"I_ID": {"$in": i_ids}}, {"I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1}, session=s))
         ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
         ## Note that this will happen with 1% of transactions on purpose.
-        if self.get_count(self.item, {"I_ID": {"$in": i_ids}}, s) != len(i_ids):
+        if len(items) != len(i_ids):
             s.abort_transaction()
             # Removing this log line as it's an intentional part of the test 
             # and it was clouding results of the benchmark 
@@ -910,8 +905,8 @@ class MongodbDriver(AbstractDriver):
             # Get the midpoint customer's id
             search_fields['C_LAST'] = c_last
 
-            all_customers = self.customer.find(search_fields, return_fields, session=s)
-            namecnt = self.get_count(self.customer, search_fields, s)
+            all_customers = list(self.customer.find(search_fields, return_fields, session=s))
+            namecnt = len(all_customers)
             assert namecnt > 0
             index = (namecnt-1)/2
             c = all_customers[index]
@@ -976,8 +971,8 @@ class MongodbDriver(AbstractDriver):
             # getCustomersByLastName
             # Get the midpoint customer's id
             search_fields['C_LAST'] = c_last
-            all_customers = self.customer.find(search_fields, return_fields, session=s)
-            namecnt = self.get_count(self.customer, search_fields, s)
+            all_customers = list(self.customer.find(search_fields, return_fields, session=s))
+            namecnt = len(all_customers) 
             assert namecnt > 0
             index = (namecnt-1)/2
             c = all_customers[index]
@@ -993,8 +988,8 @@ class MongodbDriver(AbstractDriver):
         else:
             # getCustomersByLastName
             # Get the midpoint customer's id
-            all_customers = self.customer.find({"C_W_ID": w_id, "C_D_ID": d_id, "C_LAST": c_last}, session=s)
-            namecnt = self.get_count(self.customer, {"C_W_ID": w_id, "C_D_ID": d_id, "C_LAST": c_last}, s)
+            all_customers = list(self.customer.find({"C_W_ID": w_id, "C_D_ID": d_id, "C_LAST": c_last}, session=s))
+            namecnt = len(all_customers) 
             assert namecnt > 0
             index = (namecnt-1)/2
             c = all_customers[index]
@@ -1127,9 +1122,11 @@ class MongodbDriver(AbstractDriver):
 
         if self.denormalize:
             result = self.get_count(self.item,{"I_ID": {"$in": list(ol_ids)}, "STOCK": {"$elemMatch": {"S_W_ID": w_id, "S_QUANTITY": {"$lt": threshold}}}}, s)
+            logging.debug("Denormalized result of stock count is " + str(result))
         else:
             result = self.get_count(self.stock,
                                 {"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}}, s)
+            logging.debug("Normalized result of stock count is " + str(result))
         ## IF
 
         return int(result)
