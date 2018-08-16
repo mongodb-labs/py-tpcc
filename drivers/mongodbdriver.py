@@ -347,7 +347,7 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     def loadTuples(self, tableName, tuples):
         if len(tuples) == 0: return
-        logging.info("Loading %d tuples for tableName %s" % (len(tuples), tableName))
+        logging.debug("Loading %d tuples for tableName %s" % (len(tuples), tableName))
 
         assert tableName in TABLE_COLUMNS, "Unexpected table %s" % tableName
         columns = TABLE_COLUMNS[tableName]
@@ -555,20 +555,16 @@ class MongodbDriver(AbstractDriver):
 
         result = [ ]
         for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):
+            ## getNewOrder
+            no = self.new_order.find_one_and_update({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"$set":{"inProg":True}}, projection={"NO_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
+            if no == None:
+                ## No orders for this district: skip it. Note: This must be reported if > 1%
+                continue
+            ## IF
+            assert len(no) > 0
+            o_id = no["NO_O_ID"]
+
             if self.denormalize:
-                ## getNewOrder
-                #https://stackoverflow.com/questions/6360465/how-to-find-min-value-in-mongodb
-                no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
-                no_converted_cursor=list(no_cursor)
-
-                if len(no_converted_cursor) == 0:
-                    ## No orders for this district: skip it. Note: This must be reported if > 1%
-                    continue
-                ## IF
-
-                assert len(no_converted_cursor) > 0
-                no=no_converted_cursor[0]
-                o_id = no["NO_O_ID"]
                 c=None
 
                 if o_id != None:
@@ -601,20 +597,6 @@ class MongodbDriver(AbstractDriver):
                 ## updateOrders + updateCustomer
                 self.customer.update_one({"_id": c['_id'], "ORDERS.O_ID": o_id}, {"$set": {"ORDERS.$.O_CARRIER_ID": o_carrier_id, "ORDERS.$.ORDER_LINE": orderLines}, "$inc": {"C_BALANCE": ol_total}}, session=s)
             else:
-                ## getNewOrder
-                #https://stackoverflow.com/questions/6360465/how-to-find-min-value-in-mongodb
-                no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
-                no_converted_cursor=list(no_cursor)
-
-                if len(no_converted_cursor) == 0:
-                    ## No orders for this district: skip it. Note: This must be reported if > 1%
-                    continue
-                ## IF
-
-                assert len(no_converted_cursor) > 0
-                no=no_converted_cursor[0]
-                o_id = no["NO_O_ID"]
-
                 ## getCId
                 o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"O_C_ID": 1}, session=s)
                 assert o != None
