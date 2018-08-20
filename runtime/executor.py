@@ -53,7 +53,7 @@ class Executor:
     def execute(self, duration):
         global_result = results.Results()
         assert global_result
-        logging.info("Executing benchmark for %d seconds" % duration)
+        logging.debug("Executing benchmark for %d seconds" % duration)
         start = global_result.startBenchmark()
         debug = logging.getLogger().isEnabledFor(logging.DEBUG)
         # Batch Results
@@ -81,7 +81,7 @@ class Executor:
 
             if time.time() - start_batch > 60:
                 batch_result.stopBenchmark()
-                logging.info(batch_result.show())
+                logging.debug(batch_result.show())
                 batch_result = results.Results()
                 start_batch = batch_result.startBenchmark()
 

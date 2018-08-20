@@ -274,7 +274,7 @@ if __name__ == '__main__':
         assert results
         logging.info("Final Results")
         logging.info("Threads: %d" % args['clients'])
-        logging.info(results.show(load_time))
+        logging.info(results.show(load_time, driver))
     ## IF
     
 ## MAIN

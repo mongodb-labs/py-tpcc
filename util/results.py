@@ -92,7 +92,7 @@ class Results:
     def __str__(self):
         return self.show()
         
-    def show(self, load_time = None):
+    def show(self, load_time = None, driver=None):
         if self.start == None:
             return "Benchmark not started"
         if self.stop == None:
@@ -125,6 +125,13 @@ class Results:
         ret += "\n" + ("-"*total_width)
         total_rate = "%.02f txn/s" % ((total_cnt / total_time))
         ret += f % ("TOTAL", str(total_cnt), str(total_time), total_rate)
+        if driver != None:
+            print(driver)
+            ret += "\nNew order rate for %s config %s transactions %s findAndModify in %d seconds: \t  %d  (%d total orders %d sec duration) " % (
+                ("normalized", "denormalized")[driver.denormalize],
+                ("with", "without")[driver.noTransactions],
+                ("without", "with")[driver.findAndModify],
+                duration, round(self.txn_counters['NEW_ORDER']*60/duration), self.txn_counters['NEW_ORDER'], duration)
 
         return (ret.encode('ascii', "ignore"))
 ## CLASS
