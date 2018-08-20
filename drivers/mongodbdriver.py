@@ -229,8 +229,8 @@ class MongodbDriver(AbstractDriver):
         "name":             ("Database name", "tpcc"),
         "replicaset":       ("ReplicaSet name -- you can only run transactions on the PRIMARY node in a replicaset", "replset"),
         "denormalize":      ("If set to true, then the data will be denormalized using MongoDB schema design best practices", True),
-        "noTransactions":   ("If set to true, then transactions will be skipped (benchmarking only)", False),
-        "findAndModify":    ("If set to true, then order will be fetched via findAndModify", False),
+        "notransactions":   ("If set to true, then transactions will be skipped (benchmarking only)", False),
+        "findandmodify":    ("If set to true, then order will be fetched via findAndModify", False)
         #"secondary_reads":  ("If set to true, then we will perform causal reads against secondaries when possible", False)
     }
     DENORMALIZED_TABLES = [
@@ -247,7 +247,7 @@ class MongodbDriver(AbstractDriver):
 
     def __init__(self, ddl):
         super(MongodbDriver, self).__init__("mongodb", ddl)
-        self.noTransaction = False
+        self.noTransactions = False
         self.findAndModify = False
         self.database = None
         self.client = None
@@ -305,6 +305,9 @@ class MongodbDriver(AbstractDriver):
 
         self.database = self.client[str(config['name'])]
         self.denormalize = eval(config['denormalize'])
+
+        self.findAndModify = eval(config['findandmodify'])
+        self.noTransactions = eval(config['notransactions'])
 
         if self.denormalize: logging.debug("Using denormalized data model")
 
@@ -1126,7 +1129,7 @@ class MongodbDriver(AbstractDriver):
 
 
     def run_transaction(self, client, txn_callback, session, name, params):
-        if self.noTransaction: return (True, txn_callback(session, params))
+        if self.noTransactions: return (True, txn_callback(session, params))
         try:
             # this implicitly commits on success
             with session.start_transaction():
