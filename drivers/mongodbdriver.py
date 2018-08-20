@@ -1108,7 +1108,7 @@ class MongodbDriver(AbstractDriver):
 
 
     def run_transaction(self, client, txn_callback, session, name, params):
-        if self.noTransactions: return (True, txn_callback(session, params))
+        if self.noTransactions: return (True, txn_callback(None, params))
         try:
             # this implicitly commits on success
             with session.start_transaction():
