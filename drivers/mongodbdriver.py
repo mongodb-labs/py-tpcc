@@ -245,6 +245,7 @@ class MongodbDriver(AbstractDriver):
 
     def __init__(self, ddl):
         super(MongodbDriver, self).__init__("mongodb", ddl)
+        self.noTransaction = True
         self.database = None
         self.client = None
         self.executed=False
@@ -561,7 +562,7 @@ class MongodbDriver(AbstractDriver):
                 ## No orders for this district: skip it. Note: This must be reported if > 1%
                 continue
             ## IF
-            assert len(no) > 0
+
             o_id = no["NO_O_ID"]
 
             if self.denormalize:
@@ -581,11 +582,7 @@ class MongodbDriver(AbstractDriver):
                 o_id=o["O_ID"]
                 orderLines = o["ORDER_LINE"]
 
-                for ol in orderLines:
-                    ol_total += ol["OL_AMOUNT"]
-                    ## We have to do this here because we can't update the nested array atomically
-                    ol["OL_DELIVERY_D"] = ol_delivery_d
-                ## FOR
+                ol_total = sum([ol["OL_AMOUNT"] for ol in orderLines])
 
                 if ol_total == 0:
                     pprint(params)
@@ -595,7 +592,7 @@ class MongodbDriver(AbstractDriver):
                 ## IF
 
                 ## updateOrders + updateCustomer
-                self.customer.update_one({"_id": c['_id'], "ORDERS.O_ID": o_id}, {"$set": {"ORDERS.$.O_CARRIER_ID": o_carrier_id, "ORDERS.$.ORDER_LINE": orderLines}, "$inc": {"C_BALANCE": ol_total}}, session=s)
+                self.customer.update_one({"_id": c['_id'], "ORDERS.O_ID": o_id}, {"$set": {"ORDERS.$[o].O_CARRIER_ID": o_carrier_id, "ORDERS.$[o].ORDER_LINE.$[].OL_DELIVERY_D": ol_delivery_d}, "$inc": {"C_BALANCE": ol_total}}, array_filters=[{'o':{'O_ID':o_id}}],session=s)
             else:
                 ## getCId
                 o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"O_C_ID": 1}, session=s)
@@ -610,15 +607,16 @@ class MongodbDriver(AbstractDriver):
                 ## updateOrders
                 self.orders.update_one(o, {"$set": {"O_CARRIER_ID": o_carrier_id}}, session=s)
 
-                ## updateOrderLine
-                self.order_line.update_one({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"$set": {"OL_DELIVERY_D": ol_delivery_d}}, session=s)
+                ## updateOrderLines
+                self.order_line.update_many({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"$set": {"OL_DELIVERY_D": ol_delivery_d}}, session=s)
 
                 ## updateCustomer
                 self.customer.update_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"$inc": {"C_BALANCE": ol_total}}, session=s)
 
-                ## deleteNewOrder
-                self.new_order.delete_one({"_id": no['_id']}, session=s)
             ## IF
+
+            ## deleteNewOrder
+            self.new_order.delete_one({"_id": no['_id']}, session=s)
 
             # These must be logged in the "result file" according to TPC-C 2.7.2.2 (page 39)
             # We remove the queued time, completed time, w_id, and o_carrier_id: the client can figure
@@ -1116,6 +1114,7 @@ class MongodbDriver(AbstractDriver):
 
 
     def run_transaction(self, client, txn_callback, session, name, params):
+        if self.noTransaction: return (True, txn_callback(session, params))
         try:
             # this implicitly commits on success
             with session.start_transaction():
