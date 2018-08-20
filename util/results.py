@@ -127,10 +127,10 @@ class Results:
         ret += f % ("TOTAL", str(total_cnt), str(total_time), total_rate)
         if driver != None:
             print(driver)
-            ret += "\nNew order rate for %s config %s transactions %s findAndModify in %d seconds: \t  %d  (%d total orders %d sec duration) " % (
-                ("normalized", "denormalized")[driver.denormalize],
-                ("with", "without")[driver.noTransactions],
-                ("without", "with")[driver.findAndModify],
+            ret += "\nTpcM for %s config %s transactions %s findAndModify in %d seconds: \t  %d  (%d total orders %d sec duration) " % (
+                ("normalized", "denorm'ed")[driver.denormalize],
+                ("with", "w/o ")[driver.noTransactions],
+                ("w/o ", "with")[driver.findAndModify],
                 duration, round(self.txn_counters['NEW_ORDER']*60/duration), self.txn_counters['NEW_ORDER'], duration)
 
         return (ret.encode('ascii', "ignore"))

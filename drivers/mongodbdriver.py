@@ -159,61 +159,45 @@ TABLE_INDEXES = {
         "I_ID",
     ],
     constants.TABLENAME_WAREHOUSE:  [
-        "W_ID",
+        [("W_ID", pymongo.ASCENDING), ("W_TAX", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_DISTRICT:   [
-        "D_ID",
-        "D_W_ID",
+        [("D_W_ID", pymongo.ASCENDING), ("D_ID", pymongo.ASCENDING), ("D_NEXT_O_ID", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_CUSTOMER:   [
-        "C_ID",
-        "C_D_ID",
-        "C_W_ID",
+        [("C_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("C_D_ID", pymongo.ASCENDING)],
         [("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("C_LAST", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_STOCK:      [
         "S_I_ID",
-        "S_W_ID",
         [("S_W_ID", pymongo.ASCENDING), ("S_I_ID", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_ORDERS:     [
-        "O_ID",
-        "O_D_ID",
-        "O_W_ID",
-        "O_C_ID",
+        [("O_ID", pymongo.ASCENDING), ("O_D_ID",pymongo.ASCENDING), ("O_W_ID",pymongo.ASCENDING), ("O_C_ID", pymongo.ASCENDING)],
+        [("O_C_ID", pymongo.ASCENDING), ("O_D_ID",pymongo.ASCENDING), ("O_W_ID",pymongo.ASCENDING), ("O_ID",pymongo.DESCENDING), ("O_CARRIER_ID",pymongo.ASCENDING),("O_ENTRY_ID",pymongo.ASCENDING)]
     ],
     constants.TABLENAME_NEW_ORDER:  [
-        "NO_O_ID",
-        "NO_D_ID",
-        "NO_W_ID",
-        [("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING)]
+        [("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING), ("_id", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_ORDER_LINE: [
-        "OL_O_ID",
-        "OL_D_ID",
-        "OL_W_ID",
+        [("OL_O_ID", pymongo.ASCENDING), ("OL_D_ID",pymongo.ASCENDING), ("OL_W_ID",pymongo.ASCENDING), ("OL_I_ID",pymongo.DESCENDING), ("OL_AMOUNT",pymongo.ASCENDING)]
     ],
 }
 
 DENORMALIZED_TABLE_INDEXES = {
     constants.TABLENAME_ITEM:       [    
-        "I_ID",
         [("I_ID",pymongo.ASCENDING), ("STOCK.S_W_ID",pymongo.ASCENDING), ("STOCK.S_QUANTITY",pymongo.ASCENDING)]
     ],
     constants.TABLENAME_WAREHOUSE:  [
-        "W_ID",
         [("W_ID",pymongo.ASCENDING), ("DISTRICT.D_ID",pymongo.ASCENDING)],
     ],
     constants.TABLENAME_CUSTOMER:   [
         [("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("C_LAST", pymongo.ASCENDING)],
         [("C_ID", pymongo.ASCENDING), ("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING)],
-        [("ORDERS.O_ID", pymongo.ASCENDING), ("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING)]
+        [("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("ORDERS.O_ID", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_NEW_ORDER:  [
-        "NO_O_ID",
-        "NO_D_ID",
-        "NO_W_ID",
-        [("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING)]
+        [("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING), ("_id", pymongo.ASCENDING)]
     ],
     
 }
@@ -308,7 +292,6 @@ class MongodbDriver(AbstractDriver):
 
         self.findAndModify = eval(config['findandmodify'])
         self.noTransactions = eval(config['notransactions'])
-        if self.noTransactions: print "******* Not using transactions ********"
 
         if self.denormalize: logging.debug("Using denormalized data model")
 
@@ -605,12 +588,12 @@ class MongodbDriver(AbstractDriver):
                 self.customer.update_one({"_id": c['_id'], "ORDERS.O_ID": o_id}, {"$set": {"ORDERS.$[o].O_CARRIER_ID": o_carrier_id, "ORDERS.$[o].ORDER_LINE.$[].OL_DELIVERY_D": ol_delivery_d}, "$inc": {"C_BALANCE": ol_total}}, array_filters=[{'o':{'O_ID':o_id}}],session=s)
             else:
                 ## getCId
-                o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"O_C_ID": 1}, session=s)
+                o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"O_C_ID": 1, "_id":0}, session=s)
                 assert o != None
                 c_id = o["O_C_ID"]
 
                 ## sumOLAmount
-                orderLines = self.order_line.find({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"OL_AMOUNT": 1}, session=s)
+                orderLines = self.order_line.find({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"_id":0, "OL_AMOUNT": 1}, session=s)
                 assert orderLines != None
                 ol_total = sum([ol["OL_AMOUNT"] for ol in orderLines])
 
@@ -669,14 +652,14 @@ class MongodbDriver(AbstractDriver):
         ## http://stackoverflow.com/q/3844931/
         all_local = (not i_w_ids or [w_id] * len(i_w_ids) == i_w_ids)
 
-        items = list(self.item.find({"I_ID": {"$in": i_ids}}, {"I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1}, session=s))
+        items = list(self.item.find({"I_ID": {"$in": i_ids}}, {"_id":0, "I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1}, session=s))
         ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
         ## Note that this will happen with 1% of transactions on purpose.
         if len(items) != len(i_ids):
             s.abort_transaction()
             # Removing this log line as it's an intentional part of the test 
             # and it was clouding results of the benchmark 
-            # logging.info("Aborting transaction - expected")
+            logging.info("1% Abort transaction - expected")
             return
         ## IF
 
@@ -685,7 +668,7 @@ class MongodbDriver(AbstractDriver):
         ## ----------------
         
         if self.denormalize:
-            w = self.warehouse.find_one({"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"W_TAX": 1, "DISTRICT.$": 1}, session=s)
+            w = self.warehouse.find_one({"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"_id":0, "W_TAX": 1, "DISTRICT.$": 1}, session=s)
             assert w
             w_tax=w["W_TAX"]
             d=w["DISTRICT"][0]
@@ -695,12 +678,12 @@ class MongodbDriver(AbstractDriver):
             self.warehouse.update_one({"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"$set": {"DISTRICT.$": d}})
         else:
             # getWarehouseTaxRate
-            w = self.warehouse.find_one({"W_ID": w_id}, {"W_TAX": 1}, session=s)
+            w = self.warehouse.find_one({"W_ID": w_id}, {"_id":0, "W_TAX": 1}, session=s)
             assert w
             w_tax = w["W_TAX"]
 
             # getDistrict
-            d = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id}, {"D_TAX": 1, "D_NEXT_O_ID": 1}, session=s)
+            d = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id}, {"_id":0, "D_TAX": 1, "D_NEXT_O_ID": 1}, session=s)
             assert d
             d_tax = d["D_TAX"]
             d_next_o_id = d["D_NEXT_O_ID"]
@@ -748,7 +731,7 @@ class MongodbDriver(AbstractDriver):
         if all_local and False:
             # getStockInfo
             if not self.denormalize:
-                allStocks = list(self.stock.find({"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s))
+                allStocks = list(self.stock.find({"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, {"_id":0, "S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s))
                 assert len(allStocks) == ol_cnt
             ## IF
 
@@ -779,10 +762,10 @@ class MongodbDriver(AbstractDriver):
             i_price = itemInfo["I_PRICE"]
       
             if self.denormalize:
-                allStock = self.item.find_one( {"I_ID": ol_i_id, "STOCK.S_W_ID": w_id}, {"STOCK.$": 1}, session=s)
+                allStock = self.item.find_one( {"I_ID": ol_i_id, "STOCK.S_W_ID": w_id}, {"_id":0, "STOCK.$": 1}, session=s)
                 si = allStock["STOCK"][0]
             else:
-                si = self.stock.find_one({"S_I_ID": ol_i_id, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
+                si = self.stock.find_one({"S_I_ID": ol_i_id, "S_W_ID": w_id}, {"_id":0, "S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
             ## IF
 
             assert si, "Failed to find S_I_ID: %d\n%s" % (ol_i_id, pformat(itemInfo))
@@ -877,7 +860,7 @@ class MongodbDriver(AbstractDriver):
         assert d_id, pformat(params)
 
         search_fields = {"C_W_ID": w_id, "C_D_ID": d_id}
-        return_fields = {"C_ID": 1, "C_FIRST": 1, "C_MIDDLE": 1, "C_LAST": 1, "C_BALANCE": 1}
+        return_fields = {"_id":0, "C_ID": 1, "C_FIRST": 1, "C_MIDDLE": 1, "C_LAST": 1, "C_BALANCE": 1}
         if self.denormalize:
             for f in ['O_ID', 'O_CARRIER_ID', 'O_ENTRY_D']:
                 return_fields["%s.%s" % (constants.TABLENAME_ORDERS, f)] = 1
@@ -983,7 +966,7 @@ class MongodbDriver(AbstractDriver):
 
         if self.denormalize:
             # getDistrict
-            d = self.warehouse.find_one( {"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"DISTRICT.$": 1}, session=s)["DISTRICT"][0]
+            d = self.warehouse.find_one( {"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"_id":0, "DISTRICT.$": 1}, session=s)["DISTRICT"][0]
             assert d
         
             # updateDistrictBalance
@@ -1053,7 +1036,7 @@ class MongodbDriver(AbstractDriver):
         # getOId
         if self.denormalize:
             dis_name=constants.TABLENAME_DISTRICT
-            d = self.warehouse.find_one({dis_name: {"$elemMatch": {"D_W_ID": w_id, "D_ID": d_id}}}, {"DISTRICT.$": 1}, session=s)[dis_name][0]
+            d = self.warehouse.find_one({dis_name: {"$elemMatch": {"D_W_ID": w_id, "D_ID": d_id}}}, {"_id":0, "DISTRICT.$": 1}, session=s)[dis_name][0]
 
             if d==None:
                 new_w=self.warehouse.find_one({"W_ID": w_id},session=s)
@@ -1066,7 +1049,7 @@ class MongodbDriver(AbstractDriver):
                 ## FOR
             ## IF
         else:
-            d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NEXT_O_ID": 1}, session=s)
+            d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"_id":0, "D_NEXT_O_ID": 1}, session=s)
         ## IF
 
         assert d
