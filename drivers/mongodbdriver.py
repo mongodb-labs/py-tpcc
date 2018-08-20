@@ -308,16 +308,15 @@ class MongodbDriver(AbstractDriver):
 
         self.findAndModify = eval(config['findandmodify'])
         self.noTransactions = eval(config['notransactions'])
+        if self.noTransactions: print "******* Not using transactions ********"
 
         if self.denormalize: logging.debug("Using denormalized data model")
 
         if config["reset"]:
             logging.debug("Deleting database '%s'" % self.database.name)
             for name in constants.ALL_TABLES:
-                if name in self.database.collection_names():
-                    self.database.drop_collection(name)
+                    self.database[name].drop()
                     logging.debug("Dropped collection %s" % name)
-                ## IF
             ## FOR
         ## IF
 
@@ -579,15 +578,11 @@ class MongodbDriver(AbstractDriver):
            ## IF
 
             o_id = no["NO_O_ID"]
+            assert o_id != None
 
             if self.denormalize:
-                c=None
-
-                if o_id != None:
-                    c=self.customer.find_one({"ORDERS.O_ID": o_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_ID": 1, "ORDERS.$": 1}, session=s)
-
-                if c==None:
-                    continue
+                c=self.customer.find_one({"ORDERS.O_ID": o_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_ID": 1, "ORDERS.$": 1}, session=s)
+                assert c!=None
 
                 c_id = c["C_ID"]
 
@@ -753,8 +748,8 @@ class MongodbDriver(AbstractDriver):
         if all_local and False:
             # getStockInfo
             if not self.denormalize:
-                allStocks = self.stock.find({"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
-                assert self.get_count(self.stock, {"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, s) == ol_cnt
+                allStocks = list(self.stock.find({"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s))
+                assert len(allStocks) == ol_cnt
             ## IF
 
             stockInfos = { }
@@ -977,22 +972,6 @@ class MongodbDriver(AbstractDriver):
         assert len(c) > 0
         assert c_id != None
 
-        if c_id != None:
-            # getCustomerByCustomerId
-            c = self.customer.find_one({"C_W_ID": w_id, "C_D_ID": d_id, "C_ID": c_id}, session=s)
-        else:
-            # getCustomersByLastName
-            # Get the midpoint customer's id
-            all_customers = list(self.customer.find({"C_W_ID": w_id, "C_D_ID": d_id, "C_LAST": c_last}, session=s))
-            namecnt = len(all_customers) 
-            assert namecnt > 0
-            index = (namecnt-1)/2
-            c = all_customers[index]
-            c_id = c["C_ID"]
-        ## IF
-
-        assert len(c) > 0
-        assert c_id != None
         c_data = c["C_DATA"]
 
         # getWarehouse
