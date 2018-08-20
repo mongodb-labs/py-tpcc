@@ -229,6 +229,8 @@ class MongodbDriver(AbstractDriver):
         "name":             ("Database name", "tpcc"),
         "replicaset":       ("ReplicaSet name -- you can only run transactions on the PRIMARY node in a replicaset", "replset"),
         "denormalize":      ("If set to true, then the data will be denormalized using MongoDB schema design best practices", True),
+        "noTransactions":   ("If set to true, then transactions will be skipped (benchmarking only)", False),
+        "findAndModify":    ("If set to true, then order will be fetched via findAndModify", False),
         #"secondary_reads":  ("If set to true, then we will perform causal reads against secondaries when possible", False)
     }
     DENORMALIZED_TABLES = [
@@ -245,7 +247,8 @@ class MongodbDriver(AbstractDriver):
 
     def __init__(self, ddl):
         super(MongodbDriver, self).__init__("mongodb", ddl)
-        self.noTransaction = True
+        self.noTransaction = False
+        self.findAndModify = False
         self.database = None
         self.client = None
         self.executed=False
@@ -517,7 +520,7 @@ class MongodbDriver(AbstractDriver):
         #print("loadingData...")
     ## DEF
 
-                
+
     def loadFinishItem(self):
         if self.denormalize:
             self.loadDataIntoDatabase()
@@ -557,11 +560,20 @@ class MongodbDriver(AbstractDriver):
         result = [ ]
         for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):
             ## getNewOrder
-            no = self.new_order.find_one_and_update({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"$set":{"inProg":True}}, projection={"NO_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
-            if no == None:
-                ## No orders for this district: skip it. Note: This must be reported if > 1%
-                continue
-            ## IF
+            if self.findAndModify:
+                no = self.new_order.find_one_and_update({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"$set":{"inProg":True}}, projection={"NO_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
+                if no == None:
+                    ## No orders for this district: skip it. Note: This must be reported if > 1%
+                    continue
+            else:
+                no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
+                no_converted_cursor=list(no_cursor)
+                if len(no_converted_cursor) == 0:
+                    ## No orders for this district: skip it. Note: This must be reported if > 1%
+                    continue
+                ## IF
+                no = no_converted_cursor[0]
+           ## IF
 
             o_id = no["NO_O_ID"]
 
