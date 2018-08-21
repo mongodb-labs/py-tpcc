@@ -138,7 +138,7 @@ class Executor:
         o_entry_d = datetime.now()
 
         ## 1% of transactions roll back
-        rollback = False # FIXME rand.number(1, 100) == 1
+        rollback = rand.number(1, 100) == 1
 
         i_ids = [ ]
         i_w_ids = [ ]

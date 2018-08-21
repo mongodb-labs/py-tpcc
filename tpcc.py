@@ -33,22 +33,20 @@ import logging
 import re
 import argparse
 import glob
-import time 
+import time
 import multiprocessing
 from ConfigParser import SafeConfigParser
-from pprint import pprint,pformat
+from pprint import pprint, pformat
 
-from util import *
-from runtime import *
+from util import results, scaleparameters
+from runtime import executor, loader
 import drivers
-import random
 
-random.seed()
-logging.basicConfig(level = logging.INFO,
+logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(funcName)s:%(lineno)03d] %(levelname)-5s: %(message)s",
                     datefmt="%m-%d-%Y %H:%M:%S",
                     #
-                    filename='results.log' )
+                    filename='results.log')
 
 console = logging.StreamHandler()
 console.setLevel(logging.INFO)
@@ -70,10 +68,10 @@ def createDriverClass(name):
 ## getDrivers
 ## ==============================================
 def getDrivers():
-    drivers = [ ]
+    drivers = []
     for f in map(lambda x: os.path.basename(x).replace("driver.py", ""), glob.glob("./drivers/*driver.py")):
         if f != "abstract": drivers.append(f)
-    return (drivers)
+    return drivers
 ## DEF
 
 ## ==============================================
@@ -82,21 +80,20 @@ def getDrivers():
 def startLoading(driverClass, scaleParameters, args, config):
     logging.debug("Creating client pool with %d processes" % args['clients'])
     pool = multiprocessing.Pool(args['clients'])
-    debug = logging.getLogger().isEnabledFor(logging.DEBUG)
-    
+
     # Split the warehouses into chunks
-    w_ids = map(lambda x: [ ], range(args['clients']))
+    w_ids = map(lambda x: [], range(args['clients']))
     for w_id in range(scaleParameters.starting_warehouse, scaleParameters.ending_warehouse+1):
         idx = w_id % args['clients']
         w_ids[idx].append(w_id)
     ## FOR
-    
-    loader_results = [ ]
+
+    loader_results = []
     for i in range(args['clients']):
-        r = pool.apply_async(loaderFunc, (driverClass, scaleParameters, args, config, w_ids[i], True))
+        r = pool.apply_async(loaderFunc, (driverClass, scaleParameters, args, config, w_ids[i]))
         loader_results.append(r)
     ## FOR
-    
+
     pool.close()
     logging.debug("Waiting for %d loaders to finish" % args['clients'])
     pool.join()
@@ -105,30 +102,28 @@ def startLoading(driverClass, scaleParameters, args, config):
 ## ==============================================
 ## loaderFunc
 ## ==============================================
-def loaderFunc(driverClass, scaleParameters, args, config, w_ids, debug):
+def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
     driver = driverClass(args['ddl'])
     assert driver != None
     logging.debug("Starting client execution: %s [warehouses=%d]" % (driver, len(w_ids)))
-    
+
     config['load'] = True
     config['execute'] = False
     config['reset'] = False
     driver.loadConfig(config)
-   
+
     try:
         loadItems = (1 in w_ids)
         l = loader.Loader(driver, scaleParameters, w_ids, loadItems)
         driver.loadStart()
         l.execute()
-        driver.loadFinish()   
+        driver.loadFinish()
     except KeyboardInterrupt:
-            return -1
+        return -1
     except (Exception, AssertionError), ex:
         logging.warn("Failed to load data: %s" % (ex))
-        #if debug:
-        traceback.print_exc(file=sys.stdout)
         raise
-        
+
 ## DEF
 
 ## ==============================================
@@ -138,15 +133,15 @@ def startExecution(driverClass, scaleParameters, args, config):
     logging.debug("Creating client pool with %d processes" % args['clients'])
     pool = multiprocessing.Pool(args['clients'])
     debug = logging.getLogger().isEnabledFor(logging.DEBUG)
-    
-    worker_results = [ ]
+
+    worker_results = []
     for i in range(args['clients']):
         r = pool.apply_async(executorFunc, (driverClass, scaleParameters, args, config, debug,))
         worker_results.append(r)
     ## FOR
     pool.close()
     pool.join()
-    
+
     total_results = results.Results()
     for asyncr in worker_results:
         asyncr.wait()
@@ -155,8 +150,8 @@ def startExecution(driverClass, scaleParameters, args, config):
         if type(r) == int and r == -1: sys.exit(1)
         total_results.append(r)
     ## FOR
-    
-    return (total_results)
+
+    return total_results
 ## DEF
 
 ## ==============================================
@@ -166,7 +161,7 @@ def executorFunc(driverClass, scaleParameters, args, config, debug):
     driver = driverClass(args['ddl'])
     assert driver != None
     logging.debug("Starting client execution: %s" % driver)
-    
+
     config['execute'] = True
     config['reset'] = False
     driver.loadConfig(config)
@@ -175,7 +170,7 @@ def executorFunc(driverClass, scaleParameters, args, config, debug):
     driver.executeStart()
     results = e.execute(args['duration'])
     driver.executeFinish()
-    
+
     return results
 ## DEF
 
@@ -213,7 +208,7 @@ if __name__ == '__main__':
     args = vars(aparser.parse_args())
 
     if args['debug']: logging.getLogger().setLevel(logging.DEBUG)
-        
+
     ## Create a handle to the target client driver
     driverClass = createDriverClass(args['system'])
     assert driverClass != None, "Failed to find '%s' class" % args['system']
@@ -244,9 +239,8 @@ if __name__ == '__main__':
 
     ## Create ScaleParameters
     scaleParameters = scaleparameters.makeWithScaleFactor(args['warehouses'], args['scalefactor'])
-    nurand = rand.setNURand(nurand.makeForLoad())
     if args['debug']: logging.debug("Scale Parameters:\n%s" % scaleParameters)
-    
+
     ## DATA LOADER!!!
     load_time = None
     if not args['no_load']:
@@ -261,7 +255,7 @@ if __name__ == '__main__':
             startLoading(driverClass, scaleParameters, args, config)
         load_time = time.time() - load_start
     ## IF
-    
+
     ## WORKLOAD DRIVER!!!
     if not args['no_execute']:
         if args['clients'] == 1:
@@ -276,5 +270,5 @@ if __name__ == '__main__':
         logging.info("Threads: %d" % args['clients'])
         logging.info(results.show(load_time, driver, args['clients']))
     ## IF
-    
+
 ## MAIN

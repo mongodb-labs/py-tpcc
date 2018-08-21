@@ -656,10 +656,8 @@ class MongodbDriver(AbstractDriver):
         ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
         ## Note that this will happen with 1% of transactions on purpose.
         if len(items) != len(i_ids):
-            s.abort_transaction()
-            # Removing this log line as it's an intentional part of the test 
-            # and it was clouding results of the benchmark 
-            logging.info("1% Abort transaction - expected")
+            if s: s.abort_transaction()
+            logging.debug("1% Abort transaction - expected")
             return
         ## IF
 
