@@ -288,7 +288,7 @@ class MongodbDriver(AbstractDriver):
         uri = "mongodb://" + urllib.quote_plus(config['user']) + ':' + urllib.quote_plus(config['passwd']) + config['uri'][10:]
         try:
             self.client = pymongo.MongoClient(uri, readPreference=self.client_opts["read_preference"])
-        except Exception, err::
+        except Exception, err:
             print "Was trying to connect to " + uri
             print "Got error " + str(err)
             sys.exit(1)
