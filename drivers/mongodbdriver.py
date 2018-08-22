@@ -208,14 +208,12 @@ DENORMALIZED_TABLE_INDEXES = {
 ## ==============================================
 class MongodbDriver(AbstractDriver):
     DEFAULT_CONFIG = {
-        "host":             ("The host where mongod is running", "localhost" ),
-        "port":             ("The port number for mongod", 27017 ),
+        "uri":              ("The mongodb connection string or URI", "localhost:27017" ),
         "name":             ("Database name", "tpcc"),
-        "replicaset":       ("ReplicaSet name -- you can only run transactions on the PRIMARY node in a replicaset", "replset"),
-        "denormalize":      ("If set to true, then the data will be denormalized using MongoDB schema design best practices", True),
-        "notransactions":   ("If set to true, then transactions will be skipped (benchmarking only)", False),
-        "findandmodify":    ("If set to true, then order will be fetched via findAndModify", False)
-        #"secondary_reads":  ("If set to true, then we will perform causal reads against secondaries when possible", False)
+        "denormalize":      ("If true, data will be denormalized using MongoDB schema design best practices", False),
+        "notransactions":   ("If true, transactions will not be used (benchmarking only)", False),
+        "findandmodify":    ("If true, new order will be fetched via findAndModify", False),
+        "secondary_reads":  ("If true, we will perform causal reads against nearest if possible", False)
     }
     DENORMALIZED_TABLES = [
         constants.TABLENAME_CUSTOMER,
@@ -264,34 +262,34 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     def loadConfig(self, config):
         for key in MongodbDriver.DEFAULT_CONFIG.keys():
-            assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)
+            # rather than forcing every value which has a default to be specified
+            # we should pluck out the keys from default that are missing in config
+            # and set them there to their default values
+            if not key in config:
+               logging.debug("'%s' not in %s conf, set to %s" % (key, self.name, str(MongodbDriver.DEFAULT_CONFIG[key][1])))
+               config[key] = MongodbDriver.DEFAULT_CONFIG[key][1]
 
-        # The entire transaction--reads and writes--must execute against the same node, and since each transaction
-        # is R/W against a snapshot and transactions can only be started on a PRIMARY... and everything in TPC-C is
-        # done within a transactional context (you need a consistent view) then this is not an option in 4.0
-        # I hope to see this limitation lifted with global point-in-time read support in 4.2 
-        # See: https://docs.mongodb.com/manual/reference/read-preference/
-        # Currently results in this error: "read preference in a transaction must be primary, not: SecondaryPreferred(tag_sets=None, max_staleness=-1)"
-        #self.secondary_reads = eval(config['secondary_reads'])
-        self.secondary_reads = False
-
+        self.secondary_reads = config['secondary_reads'] == 'True'
         self.session_opts["causal_consistency"] = False
 
         if self.secondary_reads:
-            self.client_opts["read_preference"] = "nearest"
+            # The entire transaction--reads and writes--must execute against the primary
+            # Print an error and exit if they want non-primary read preference
+            print("Non-primary reads are not supported for this workload")
+            sys.exit(1)
+            # self.client_opts["read_preference"] = "nearest"
             # Let's explicitly enable causal if secondary reads are allowed
-            self.session_opts["causal_consistency"] = True
+            # self.session_opts["causal_consistency"] = True
         else:
             self.client_opts["read_preference"] = "primary"
         ## IF
 
-        self.client = pymongo.MongoClient(config['host'], int(config['port']), replicaset=config['replicaset'], readPreference=self.client_opts["read_preference"])
+        self.client = pymongo.MongoClient(config['uri'], readPreference=self.client_opts["read_preference"])
 
         self.database = self.client[str(config['name'])]
-        self.denormalize = eval(config['denormalize'])
-
-        self.findAndModify = eval(config['findandmodify'])
-        self.noTransactions = eval(config['notransactions'])
+        self.denormalize = config['denormalize'] == 'True'
+        self.noTransactions = config['notransactions'] == 'True'
+        self.findAndModify = config['findandmodify'] == 'True'
 
         if self.denormalize: logging.debug("Using denormalized data model")
 
@@ -306,7 +304,6 @@ class MongodbDriver(AbstractDriver):
         ## Setup!
         load_indexes = ('execute' in config and not config['execute']) and \
                        ('load' in config and not config['load'])
-        #NOTE: NOT YET IMPLEMENTED
 
         if not self.denormalize:
             for name in constants.ALL_TABLES:
