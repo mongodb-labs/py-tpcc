@@ -209,7 +209,7 @@ DENORMALIZED_TABLE_INDEXES = {
 ## ==============================================
 class MongodbDriver(AbstractDriver):
     DEFAULT_CONFIG = {
-        "uri":              ("The mongodb connection string or URI", "localhost:27017" ),
+        "uri":              ("The mongodb connection string or URI", "mongodb://localhost:27017" ),
         "name":             ("Database name", "tpcc"),
         "denormalize":      ("If true, data will be denormalized using MongoDB schema design best practices", False),
         "notransactions":   ("If true, transactions will not be used (benchmarking only)", False),
@@ -285,9 +285,13 @@ class MongodbDriver(AbstractDriver):
             self.client_opts["read_preference"] = "primary"
         ## IF
 
-        temp_uri = config['uri']
-        uri = "mongodb://" + urllib.quote_plus(config['user']) + ':' + urllib.quote_plus(config['passwd']) + '@' + temp_uri
-        print("Going to connect to " + uri)
+        uri = "mongodb://" + urllib.quote_plus(config['user']) + ':' + urllib.quote_plus(config['passwd']) + config['uri'][10:]
+        try:
+            self.client = pymongo.MongoClient(uri, readPreference=self.client_opts["read_preference"])
+        except Exception, err::
+            print "Was trying to connect to " + uri
+            print "Got error " + str(err)
+            sys.exit(1)
 
         self.client = pymongo.MongoClient(uri, readPreference=self.client_opts["read_preference"])
 
