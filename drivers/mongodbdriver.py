@@ -35,6 +35,7 @@ import os
 import sys
 import logging
 import pymongo
+import urllib
 from pprint import pprint,pformat
 from time import sleep
 
@@ -284,7 +285,11 @@ class MongodbDriver(AbstractDriver):
             self.client_opts["read_preference"] = "primary"
         ## IF
 
-        self.client = pymongo.MongoClient(config['uri'], readPreference=self.client_opts["read_preference"])
+        temp_uri = config['uri']
+        uri = "mongodb://" + urllib.quote_plus(config['user']) + ':' + urllib.quote_plus(config['passwd']) + '@' + temp_uri
+        print("Going to connect to " + uri)
+
+        self.client = pymongo.MongoClient(uri, readPreference=self.client_opts["read_preference"])
 
         self.database = self.client[str(config['name'])]
         self.denormalize = config['denormalize'] == 'True'
