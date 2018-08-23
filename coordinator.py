@@ -48,7 +48,7 @@ import drivers
 logging.basicConfig(level = logging.INFO,
                     format="%(asctime)s [%(funcName)s:%(lineno)03d] %(levelname)-5s: %(message)s",
                     datefmt="%m-%d-%Y %H:%M:%S",
-                    stream = sys.stdout)
+                    filename='results.log')
 
 ## ==============================================
 ## createDriverClass
@@ -209,7 +209,7 @@ if __name__ == '__main__':
         results = startExecution(scaleParameters, args, config,channels)
         assert results
         logging.info(results.show(load_time, driver, len(channels)))
-        #print results.show(load_time)
+        print results.show(load_time, driver, len(channels))
     ## IF
 
 ## MAIN
