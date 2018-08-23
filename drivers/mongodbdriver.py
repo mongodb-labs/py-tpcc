@@ -811,7 +811,7 @@ class MongodbDriver(AbstractDriver):
 
             if si == None:
                if s: s.abort_transaction()
-               logging.debug("1% bad order - expected (Failed to find S_I_ID: %d)" % (ol_i_id)
+               logging.debug("1% bad order - expected (Failed to find S_I_ID: %d)" % (ol_i_id))
                return
 
             s_quantity = si["S_QUANTITY"]
