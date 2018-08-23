@@ -809,7 +809,7 @@ class MongodbDriver(AbstractDriver):
                 si = self.stock.find_one({"S_I_ID": ol_i_id, "S_W_ID": w_id}, {"_id":0, "S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
             ## IF
 
-            assert si, "Failed to find S_I_ID: %d\n%s" % (ol_i_id, pformat(itemInfo))
+            assert si, "Failed to find S_I_ID: %d %d\n%s\n%s" % (ol_i_id, w_id, pformat(itemInfo), params)
 
             s_quantity = si["S_QUANTITY"]
             s_ytd = si["S_YTD"]
