@@ -285,21 +285,58 @@ class MongodbDriver(AbstractDriver):
             self.client_opts["read_preference"] = "primary"
         ## IF
 
-        uri = "mongodb://" + urllib.quote_plus(config['user']) + ':' + urllib.quote_plus(config['passwd']) + config['uri'][10:]
+        self.denormalize = config['denormalize'] == 'True'
+        self.noTransactions = config['notransactions'] == 'True'
+        self.findAndModify = config['findandmodify'] == 'True'
+
+        # handle building connection string
+        print config
+        uri = None
+        host = None
+        user = None
+        userpassword = ""
+        if 'uri' in config:
+            uri = config['uri']
+        if 'host' in config:
+            host = config['host']
+        if 'user' in config:
+            user = config['user']
+            if not 'passwd' in config:
+                logging.error("must specify password if user is specified")
+                sys.exit(1)
+            userpassword=urllib.quote_plus(user)+':'+urllib.quote_plus(config['passwd'])+"@"
+        if uri and host:
+            logging.error("Cannot specify both URI and host")
+            sys.exit(1)
+        if uri:
+            real_uri = uri
+            if uri[0:14] == "mongodb+srv://":
+                print("got SRV")
+                if userpassword:
+                    real_uri = uri[0:14]+userpassword+uri[14:]
+            if uri[0:10] == "mongodb://":
+                print("got regular URI")
+                if userpassword:
+                    real_uri = uri[0:10]+userpassword+uri[10:]
+        elif not host:
+            logging.error("must specify host if URI is not provided")
+            sys.exit(1)
+        else:
+            # host provided
+            if 'port' in config:
+                host = host+':'+config['port']
+            real_uri = "mongodb://" + userpassword + host
+
+        # real_uri = "mongodb://" + urllib.quote_plus(config['user']) + ':' + urllib.quote_plus(config['passwd']) + config['uri'][10:]
+        print real_uri
         try:
-            self.client = pymongo.MongoClient(uri, readPreference=self.client_opts["read_preference"])
+            self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"])
         except Exception, err:
             print "Was trying to connect to " + uri
             print "Got error " + str(err)
             sys.exit(1)
 
-        self.client = pymongo.MongoClient(uri, readPreference=self.client_opts["read_preference"])
-
         self.database = self.client[str(config['name'])]
-        self.denormalize = config['denormalize'] == 'True'
-        self.noTransactions = config['notransactions'] == 'True'
-        self.findAndModify = config['findandmodify'] == 'True'
-
         if self.denormalize: logging.debug("Using denormalized data model")
 
         if config["reset"]:
@@ -310,7 +347,7 @@ class MongodbDriver(AbstractDriver):
             ## FOR
         ## IF
 
-        ## Setup!
+        ## whether should check for indexes
         load_indexes = ('execute' in config and not config['execute']) and \
                        ('load' in config and not config['load'])
 
