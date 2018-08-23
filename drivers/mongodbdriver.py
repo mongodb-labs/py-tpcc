@@ -163,7 +163,7 @@ TABLE_INDEXES = {
         [("W_ID", pymongo.ASCENDING), ("W_TAX", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_DISTRICT:   [
-        [("D_W_ID", pymongo.ASCENDING), ("D_ID", pymongo.ASCENDING), ("D_NEXT_O_ID", pymongo.ASCENDING)]
+        [("D_W_ID", pymongo.ASCENDING), ("D_ID", pymongo.ASCENDING), ("D_NEXT_O_ID", pymongo.ASCENDING), ("D_TAX", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_CUSTOMER:   [
         [("C_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("C_D_ID", pymongo.ASCENDING)],
@@ -171,7 +171,7 @@ TABLE_INDEXES = {
     ],
     constants.TABLENAME_STOCK:      [
         "S_I_ID",
-        [("S_W_ID", pymongo.ASCENDING), ("S_I_ID", pymongo.ASCENDING)]
+        [("S_W_ID", pymongo.ASCENDING), ("S_I_ID", pymongo.ASCENDING), ("S_QUANTITY", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_ORDERS:     [
         [("O_ID", pymongo.ASCENDING), ("O_D_ID",pymongo.ASCENDING), ("O_W_ID",pymongo.ASCENDING), ("O_C_ID", pymongo.ASCENDING)],
@@ -334,7 +334,7 @@ class MongodbDriver(AbstractDriver):
         except Exception, err:
             print "Was trying to connect to " + uri
             print "Got error " + str(err)
-            sys.exit(1)
+            return
 
         self.database = self.client[str(config['name'])]
         if self.denormalize: logging.debug("Using denormalized data model")
@@ -724,7 +724,7 @@ class MongodbDriver(AbstractDriver):
             w_tax = w["W_TAX"]
 
             # getDistrict
-            d = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id}, {"_id":0, "D_TAX": 1, "D_NEXT_O_ID": 1}, session=s)
+            d = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id}, {"_id":0, "D_ID":1, "D_W_ID":1, "D_TAX": 1, "D_NEXT_O_ID": 1}, session=s)
             assert d
             d_tax = d["D_TAX"]
             d_next_o_id = d["D_NEXT_O_ID"]
@@ -868,9 +868,6 @@ class MongodbDriver(AbstractDriver):
         ## FOR
 
         ## Adjust the total for the discount
-        #print "c_discount:", c_discount, type(c_discount)
-        #print "w_tax:", w_tax, type(w_tax)
-        #print "d_tax:", d_tax, type(d_tax)
         total *= (1 - c_discount) * (1 + w_tax + d_tax)
 
         if self.denormalize: #just added this, not sure what the functionality was before
@@ -1112,7 +1109,7 @@ class MongodbDriver(AbstractDriver):
                 orderLines.extend(ol["ORDERS"][0]["ORDER_LINE"])
             ## FOR
         else:
-            orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": {"$lt": o_id, "$gte": o_id-20}}, {"OL_I_ID": 1}, session=s)
+            orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": {"$lt": o_id, "$gte": o_id-20}}, {"_id":0, "OL_I_ID": 1}, session=s)
         ## IF
 
         assert orderLines
