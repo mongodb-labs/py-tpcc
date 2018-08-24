@@ -1063,9 +1063,11 @@ class MongodbDriver(AbstractDriver):
 
     ## ----------------------------------------------
     ## doStockLevel
+    ## does not require transaction
     ## ----------------------------------------------
     def doStockLevel(self, params):
-        return self.run_transaction_with_retries(self.client, self._doStockLevelTxn, "stock level", params)
+        return (True, self._doStockLevelTxn(None, params))
+        # return self.run_transaction_with_retries(self.client, self._doStockLevelTxn, "stock level", params)
     ## DEF
 
 
