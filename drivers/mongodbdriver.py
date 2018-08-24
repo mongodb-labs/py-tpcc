@@ -577,29 +577,35 @@ class MongodbDriver(AbstractDriver):
     ## doDelivery
     ## ----------------------------------------------
     def doDelivery(self, params):
-        return self.run_transaction_with_retries(self.client, self._doDeliveryTxn, "delivery", params)
+        # two options, option one is to run a db transaction for each of 10 orders
+
+        result = [ ]
+        for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):    # there will be as many orders as districts per warehouse (10)
+            params["d_id"]=d_id
+            r = self.run_transaction_with_retries(self.client, self._doDeliveryTxn, "delivery", params)
+            if r: result.append(r)
+        return result
     ## DEF
 
 
     def _doDeliveryTxn(self, s, params):
-        w_id = params["w_id"]
-        o_carrier_id = params["o_carrier_id"]
-        ol_delivery_d = params["ol_delivery_d"]
-
-        result = [ ]
-        for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):
+            w_id = params["w_id"]
+            o_carrier_id = params["o_carrier_id"]
+            ol_delivery_d = params["ol_delivery_d"]
+            d_id = params["d_id"]
+        # for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):    # there will be as many orders as districts per warehouse (10)
             ## getNewOrder
             if self.findAndModify:
                 no = self.new_order.find_one_and_update({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"$set":{"inProg":True}}, projection={"NO_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
                 if no == None:
                     ## No orders for this district: skip it. Note: This must be reported if > 1%
-                    continue
+                    return None # continue
             else:
                 no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
                 no_converted_cursor=list(no_cursor)
                 if len(no_converted_cursor) == 0:
                     ## No orders for this district: skip it. Note: This must be reported if > 1%
-                    continue
+                    return None  # continue
                 ## IF
                 no = no_converted_cursor[0]
            ## IF
@@ -622,7 +628,7 @@ class MongodbDriver(AbstractDriver):
                 ol_total = sum([ol["OL_AMOUNT"] for ol in orderLines])
 
                 if ol_total == 0:
-                    pprint(params)
+                    # pprint(params)
                     pprint(no)
                     pprint(c)
                     sys.exit(1)
@@ -662,10 +668,10 @@ class MongodbDriver(AbstractDriver):
             assert ol_total != None, "ol_total is NULL: there are no order lines. This should not happen"
             assert ol_total > 0.0
 
-            result.append((d_id, o_id))
-        ## FOR
+            return (d_id, o_id)   # result.append((d_id, o_id))
+        ### FOR
 
-        return result
+        #return result
     ## DEF
 
 
@@ -1154,7 +1160,7 @@ class MongodbDriver(AbstractDriver):
         ## FOR
 
         if self.denormalize:
-            # not sure this is correct
+            # not sure this is correct (it's not)
             result = self.get_count(self.item,{"I_ID": {"$in": list(ol_ids)}, "STOCK": {"$elemMatch": {"S_W_ID": w_id, "S_QUANTITY": {"$lt": threshold}}}}, s)
             logging.debug("Denormalized result of stock count is " + str(result))
         else:
