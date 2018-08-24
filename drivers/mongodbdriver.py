@@ -186,7 +186,7 @@ TABLE_INDEXES = {
 }
 
 DENORMALIZED_TABLE_INDEXES = {
-    constants.TABLENAME_ITEM:       [    
+    constants.TABLENAME_ITEM:       [
         [("I_ID",pymongo.ASCENDING), ("STOCK.S_W_ID",pymongo.ASCENDING), ("STOCK.S_QUANTITY",pymongo.ASCENDING)]
     ],
     constants.TABLENAME_WAREHOUSE:  [
@@ -200,7 +200,7 @@ DENORMALIZED_TABLE_INDEXES = {
     constants.TABLENAME_NEW_ORDER:  [
         [("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING), ("_id", pymongo.ASCENDING)]
     ],
-    
+
 }
 
 
@@ -422,7 +422,7 @@ class MongodbDriver(AbstractDriver):
                     o = c[constants.TABLENAME_ORDERS][o_idx]
                     if not tableName in o: o[tableName] = True
                 ## FOR
-                
+
             elif tableName == constants.TABLENAME_WAREHOUSE:
                 for t in tuples:
                     k=t[0]
@@ -438,21 +438,21 @@ class MongodbDriver(AbstractDriver):
                     d=dict(map(lambda i: (columns[i], t[i]), num_columns))
                     self.w_districts[k].append(d)
                 ## FOR
-                
+
             elif tableName == constants.TABLENAME_ITEM:
                 for t in tuples:
                     k=t[0]
                     if not k in self.w_items: self.w_items[k] = []
                     self.w_items[k].append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
                 ## FOR
-                
+
             elif tableName == constants.TABLENAME_STOCK:
                 for t in tuples:
                     k=t[0]
                     if not k in self.w_stock: self.w_stock[k]=[]
                     self.w_stock[k].append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
-                ## FOR                
-                               
+                ## FOR
+
             ## Otherwise we have to find the CUSTOMER record for the other tables
             ## and append ourselves to them
             else:
@@ -489,7 +489,7 @@ class MongodbDriver(AbstractDriver):
 
             self.database[tableName].insert(tuple_dicts)
         ## IF
-        
+
         return
     ## DEF
 
@@ -530,7 +530,7 @@ class MongodbDriver(AbstractDriver):
         for k in toDel:
             del self.w_districts[k]
 
-        toDel=[] 
+        toDel=[]
 
         for item in self.w_items:
             self.database[constants.TABLENAME_ITEM].insert(self.w_items[item])
@@ -707,7 +707,7 @@ class MongodbDriver(AbstractDriver):
         ## ----------------
         ## Collect Information from WAREHOUSE, DISTRICT, and CUSTOMER
         ## ----------------
-        
+
         if self.denormalize:
             w = self.warehouse.find_one({"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"_id":0, "W_TAX": 1, "DISTRICT.$": 1}, session=s)
             assert w
@@ -724,13 +724,18 @@ class MongodbDriver(AbstractDriver):
             w_tax = w["W_TAX"]
 
             # getDistrict
-            d = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id}, {"_id":0, "D_ID":1, "D_W_ID":1, "D_TAX": 1, "D_NEXT_O_ID": 1}, session=s)
-            assert d
+            if self.findAndModify:
+                d = self.district.find_one_and_update({"D_ID": d_id, "D_W_ID": w_id}, {"$inc":{"D_NEXT_O_ID":1}}, projection={"_id":0, "D_ID":1, "D_W_ID":1, "D_TAX": 1, "D_NEXT_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
+                assert d
+            else:
+                d = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id}, {"_id":0, "D_ID":1, "D_W_ID":1, "D_TAX": 1, "D_NEXT_O_ID": 1}, session=s)
+                assert d
+                # incrementNextOrderId
+                self.district.update_one(d, {"$inc": {"D_NEXT_O_ID": 1}}, session=s)
+            ## IF
             d_tax = d["D_TAX"]
             d_next_o_id = d["D_NEXT_O_ID"]
 
-            # incrementNextOrderId
-            self.district.update_one(d, {"$inc": {"D_NEXT_O_ID": 1}}, session=s)
         ## IF
 
         # getCustomer
@@ -745,7 +750,7 @@ class MongodbDriver(AbstractDriver):
         o_carrier_id = constants.NULL_CARRIER_ID
 
         # createNewOrder
-        
+
         self.new_order.insert_one({"NO_O_ID": d_next_o_id, "NO_D_ID": d_id, "NO_W_ID": w_id}, session=s)
 
         o = {"O_ID": d_next_o_id, "O_ENTRY_D": o_entry_d, "O_CARRIER_ID": o_carrier_id, "O_OL_CNT": ol_cnt, "O_ALL_LOCAL": all_local}
@@ -777,9 +782,9 @@ class MongodbDriver(AbstractDriver):
             ## IF
 
             stockInfos = { }
-        
+
             if self.denormalize:
-                pass 
+                pass
             else:
                 for si in allStocks:
                     stockInfos["S_I_ID"] = si # HACK
@@ -801,7 +806,7 @@ class MongodbDriver(AbstractDriver):
             i_name = itemInfo["I_NAME"]
             i_data = itemInfo["I_DATA"]
             i_price = itemInfo["I_PRICE"]
-      
+
             if self.denormalize:
                 allStock = self.item.find_one( {"I_ID": ol_i_id, "STOCK.S_W_ID": w_id}, {"_id":0, "STOCK.$": 1}, session=s)
                 si = allStock["STOCK"][0]
@@ -973,6 +978,37 @@ class MongodbDriver(AbstractDriver):
         c_last = params["c_last"]
         h_date = params["h_date"]
 
+        if self.findAndModify:
+            w = self.warehouse.find_one_and_update({"W_ID": w_id}, {"$inc":{"H_AMOUNT":h_amount}}, projection={"W_NAME":1,"W_STREET_1":1,"W_STREET_2":1,"W_CITY":1,"W_STATE":1,"W_ZIP":1}, session=s)
+            assert w
+        else:
+            # getWarehouse
+            w = self.warehouse.find_one({"W_ID": w_id}, {"W_NAME": 1, "W_STREET_1": 1, "W_STREET_2": 1, "W_CITY": 1, "W_STATE": 1, "W_ZIP": 1}, session=s)
+            assert w
+            # updateWarehouseBalance
+            self.warehouse.update_one({"_id": w["_id"]}, {"$inc": {"H_AMOUNT": h_amount}}, session=s)
+        ## IF
+
+        if self.denormalize:
+            # getDistrict
+            d = self.warehouse.find_one( {"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"_id":0, "DISTRICT.$": 1}, session=s)["DISTRICT"][0]
+            assert d
+
+            # updateDistrictBalance
+            self.warehouse.update_one({"W_ID": w_id, "DISTRICT.D_ID": d_id},  {"$inc": {"DISTRICT.$.D_YTD": h_amount}}, session=s)
+        else:
+            # getDistrict
+            if self.findAndModify:
+                d = self.district.find_one_and_update({"D_ID": d_id, "D_W_ID": w_id}, {"$inc":{"D_YTD":h_amount}}, projection={"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1},session=s)
+                assert d
+            else:
+                d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1}, session=s)
+                assert d
+                # updateDistrictBalance
+                self.district.update_one({"_id": d["_id"]},  {"$inc": {"D_YTD": h_amount}}, session=s)
+            ## IF
+        ## IF
+
         search_fields = {"C_W_ID": w_id, "C_D_ID": d_id}
         return_fields = {"C_BALANCE": 0, "C_YTD_PAYMENT": 0, "C_PAYMENT_CNT": 0}
 
@@ -985,8 +1021,8 @@ class MongodbDriver(AbstractDriver):
             # getCustomersByLastName
             # Get the midpoint customer's id
             search_fields['C_LAST'] = c_last
-            all_customers = list(self.customer.find(search_fields, return_fields, session=s))
-            namecnt = len(all_customers) 
+            all_customers = list(self.customer.find(search_fields, return_fields, session=s)) # sort by C_FIRST is missing(!)
+            namecnt = len(all_customers)
             assert namecnt > 0
             index = (namecnt-1)/2
             c = all_customers[index]
@@ -997,29 +1033,6 @@ class MongodbDriver(AbstractDriver):
         assert c_id != None
 
         c_data = c["C_DATA"]
-
-        # getWarehouse
-        w = self.warehouse.find_one({"W_ID": w_id}, {"W_NAME": 1, "W_STREET_1": 1, "W_STREET_2": 1, "W_CITY": 1, "W_STATE": 1, "W_ZIP": 1}, session=s)
-        assert w
-
-        # updateWarehouseBalance
-        self.warehouse.update_one({"_id": w["_id"]}, {"$inc": {"H_AMOUNT": h_amount}}, session=s)
-
-        if self.denormalize:
-            # getDistrict
-            d = self.warehouse.find_one( {"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"_id":0, "DISTRICT.$": 1}, session=s)["DISTRICT"][0]
-            assert d
-        
-            # updateDistrictBalance
-            self.warehouse.update_one({"W_ID": w_id, "DISTRICT.D_ID": d_id},  {"$inc": {"DISTRICT.$.D_YTD": h_amount}}, session=s)
-        else:
-            # getDistrict
-            d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1}, session=s)
-            assert d
-
-            # updateDistrictBalance
-            self.district.update_one({"_id": d["_id"]},  {"$inc": {"D_YTD": h_amount}}, session=s)
-        ## IF
 
         # Build CUSTOMER update command
         customer_update = {"$inc": {"C_BALANCE": h_amount*-1, "C_YTD_PAYMENT": h_amount, "C_PAYMENT_CNT": 1}}
@@ -1034,7 +1047,7 @@ class MongodbDriver(AbstractDriver):
 
         # Concatenate w_name, four spaces, d_name
         h_data = "%s    %s" % (w["W_NAME"], d["D_NAME"])
-            
+
         h = {"H_D_ID": d_id, "H_W_ID": w_id, "H_DATE": h_date, "H_AMOUNT": h_amount, "H_DATA": h_data}
 
         if self.denormalize:
@@ -1066,7 +1079,7 @@ class MongodbDriver(AbstractDriver):
     ## does not require transaction
     ## ----------------------------------------------
     def doStockLevel(self, params):
-        return (True, self._doStockLevelTxn(None, params))
+        if self.noTransactions: return (True, self._doStockLevelTxn(None, params))
         # return self.run_transaction_with_retries(self.client, self._doStockLevelTxn, "stock level", params)
     ## DEF
 
@@ -1134,7 +1147,7 @@ class MongodbDriver(AbstractDriver):
 
 
     def run_transaction(self, client, txn_callback, session, name, params):
-        if self.noTransactions: return (True, txn_callback(None, params))
+        #if self.noTransactions: return (True, txn_callback(None, params))
         try:
             # this implicitly commits on success
             with session.start_transaction():
