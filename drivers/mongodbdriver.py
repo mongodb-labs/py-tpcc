@@ -1124,7 +1124,7 @@ class MongodbDriver(AbstractDriver):
                 orderLines.extend(ol["ORDERS"][0]["ORDER_LINE"])
             ## FOR
         else:
-            orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": {"$lt": o_id, "$gte": o_id-20}}, {"_id":0, "OL_I_ID": 1}, session=s)
+            orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": {"$lt": o_id, "$gte": o_id-20}}, {"_id":0, "OL_I_ID": 1},  batch_size=1000,session=s)
         ## IF
 
         assert orderLines
@@ -1134,11 +1134,11 @@ class MongodbDriver(AbstractDriver):
         ## FOR
 
         if self.denormalize:
+            # not sure this is correct
             result = self.get_count(self.item,{"I_ID": {"$in": list(ol_ids)}, "STOCK": {"$elemMatch": {"S_W_ID": w_id, "S_QUANTITY": {"$lt": threshold}}}}, s)
             logging.debug("Denormalized result of stock count is " + str(result))
         else:
-            result = self.get_count(self.stock,
-                                {"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}}, s)
+            result = self.stock.find({"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}}).count()
             logging.debug("Normalized result of stock count is " + str(result))
         ## IF
 
