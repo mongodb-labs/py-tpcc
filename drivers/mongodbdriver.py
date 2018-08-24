@@ -230,6 +230,7 @@ class MongodbDriver(AbstractDriver):
 
     def __init__(self, ddl):
         super(MongodbDriver, self).__init__("mongodb", ddl)
+        self.batchWrites = True
         self.noTransactions = False
         self.findAndModify = False
         self.database = None
@@ -768,7 +769,7 @@ class MongodbDriver(AbstractDriver):
         ## IF
 
         ## ----------------
-        ## OPTIMIZATION:
+        ## XXX  OPTIMIZATION:
         ## If all of the items are at the same warehouse, then we'll issue a single
         ## request to get their information
         ## NOTE: NOT IMPLEMENTED
@@ -796,6 +797,13 @@ class MongodbDriver(AbstractDriver):
         ## ----------------
         item_data = [ ]
         total = 0
+        # we already fetched all items so we should never need to go to self.item again
+        # iterate over every line item
+        # if self.batchWrites is set then write once per collection
+        if self.batchWrites:
+            stockWrites = []
+            orderLineWrites = []
+        ## IF
         for i in range(ol_cnt):
             ol_number = i + 1
             ol_supply_w_id = i_w_ids[i]
@@ -842,7 +850,10 @@ class MongodbDriver(AbstractDriver):
             if self.denormalize:
                 self.item.update_one({"I_ID": ol_i_id, "STOCK.S_W_ID": w_id}, {"$set": {"STOCK.$.S_QUANTITY": s_quantity, "STOCK.$.S_YTD": s_ytd, "STOCK.$.S_ORDER_CNT": s_order_cnt, "STOCK.$.S_REMOTE_CNT": s_remote_cnt}}, session=s)
             else:
-                self.stock.update_one(si, {"$set": {"S_QUANTITY": s_quantity, "S_YTD": s_ytd, "S_ORDER_CNT": s_order_cnt, "S_REMOTE_CNT": s_remote_cnt}}, session=s)
+                if self.batchWrites:
+                    stockWrites.append(pymongo.UpdateOne(si, {"$set": {"S_QUANTITY": s_quantity, "S_YTD": s_ytd, "S_ORDER_CNT": s_order_cnt, "S_REMOTE_CNT": s_remote_cnt}}))
+                else:
+                    self.stock.update_one(si, {"$set": {"S_QUANTITY": s_quantity, "S_YTD": s_ytd, "S_ORDER_CNT": s_order_cnt, "S_REMOTE_CNT": s_remote_cnt}}, session=s)
             ## IF
 
             if i_data.find(constants.ORIGINAL_STRING) != -1 and s_data.find(constants.ORIGINAL_STRING) != -1:
@@ -865,7 +876,11 @@ class MongodbDriver(AbstractDriver):
                 ol["OL_W_ID"] = w_id
 
                 # createOrderLine
-                self.order_line.insert_one(ol, session=s)
+                if self.batchWrites:
+                    orderLineWrites.append(ol)
+                else:
+                    self.order_line.insert_one(ol, session=s)
+                ## IF
             ## IF
 
             ## Add the info to be returned
@@ -875,6 +890,11 @@ class MongodbDriver(AbstractDriver):
         ## Adjust the total for the discount
         total *= (1 - c_discount) * (1 + w_tax + d_tax)
 
+        if self.batchWrites:
+            self.order_line.insert_many(orderLineWrites, session=s)
+            self.stock.bulk_write(stockWrites, session=s)
+        ## IF
+        
         if self.denormalize: #just added this, not sure what the functionality was before
             # createOrder
             #print(o)

@@ -127,13 +127,14 @@ class Results:
         ret += f % ("TOTAL", str(total_cnt), str(total_time), total_rate)
         if driver != None:
             print(driver)
-            ret += "\n%s TpcM for %s, %s threads, %s txn %s findAndModify: \t  %d  (%d total orders %d sec duration) " % (
+            ret += "\n%s TpcM for %s, %s threads, %s txn %s findAndModify: \t  %d  (%d total orders %d sec duration, batch writes %s) " % (
                 time.strftime("%Y-%m-%d %H:%M:%S"),
                 ("normal", "denorm")[driver.denormalize],
                 threads,
                 ("with", "w/o ")[driver.noTransactions],
                 ("w/o ", "with")[driver.findAndModify],
-                round(self.txn_counters['NEW_ORDER']*60/duration), self.txn_counters['NEW_ORDER'], duration)
+                round(self.txn_counters['NEW_ORDER']*60/duration), self.txn_counters['NEW_ORDER'], duration, 
+                ("off", "on")[driver.batchWrites])
 
         return (ret.encode('ascii', "ignore"))
 ## CLASS
