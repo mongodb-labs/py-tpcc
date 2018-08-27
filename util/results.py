@@ -136,7 +136,7 @@ class Results:
         ret += f % ("TOTAL", str(total_cnt), str(total_time), total_rate, total_rate_per_thread, "", "")
         if driver != None:
             print(driver)
-            ret += "\n%s TpcM for %s, %s threads, %s txn %s findAndModify: \t  %d  (%d total orders %d sec duration, batch writes %s) " % (
+            ret += "\n%s TpmC for %s, %s threads, %s txn %s findAndModify:  %d  (%d total orders %d sec duration, batch writes %s) " % (
                 time.strftime("%Y-%m-%d %H:%M:%S"),
                 ("normal", "denorm")[driver.denormalize],
                 threads,
