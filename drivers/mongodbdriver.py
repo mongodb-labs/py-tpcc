@@ -291,7 +291,7 @@ class MongodbDriver(AbstractDriver):
         self.findAndModify = config['findandmodify'] == 'True'
 
         # handle building connection string
-        print config
+        # print config
         uri = None
         host = None
         user = None
@@ -312,11 +312,11 @@ class MongodbDriver(AbstractDriver):
         if uri:
             real_uri = uri
             if uri[0:14] == "mongodb+srv://":
-                print("got SRV")
+                # print("got SRV")
                 if userpassword:
                     real_uri = uri[0:14]+userpassword+uri[14:]
             if uri[0:10] == "mongodb://":
-                print("got regular URI")
+                # print("got regular URI")
                 if userpassword:
                     real_uri = uri[0:10]+userpassword+uri[10:]
         elif not host:
@@ -329,7 +329,7 @@ class MongodbDriver(AbstractDriver):
             real_uri = "mongodb://" + userpassword + host
 
         # real_uri = "mongodb://" + urllib.quote_plus(config['user']) + ':' + urllib.quote_plus(config['passwd']) + config['uri'][10:]
-        print real_uri
+        # print real_uri
         try:
             self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"])
         except Exception, err:
@@ -516,7 +516,6 @@ class MongodbDriver(AbstractDriver):
         toDel=[]
 
         for w in self.w_warehouses:
-            #print(self.w_warehouses[w])
             self.database[constants.TABLENAME_WAREHOUSE].insert(self.w_warehouses[w])
         ## FOR
 
@@ -524,7 +523,6 @@ class MongodbDriver(AbstractDriver):
 
         for w_id in self.w_districts:
             self.database[constants.TABLENAME_WAREHOUSE].update_one({"W_ID": w_id}, {"$push": {constants.TABLENAME_DISTRICT: {"$each": self.w_districts[w_id]}}})
-            #print(w_id, self.w_districts[w_id])
             toDel.append(w_id)
         ## FOR
 
@@ -628,7 +626,6 @@ class MongodbDriver(AbstractDriver):
                 ol_total = sum([ol["OL_AMOUNT"] for ol in orderLines])
 
                 if ol_total == 0:
-                    # pprint(params)
                     pprint(no)
                     pprint(c)
                     sys.exit(1)
@@ -1047,7 +1044,7 @@ class MongodbDriver(AbstractDriver):
             # getCustomersByLastName
             # Get the midpoint customer's id
             search_fields['C_LAST'] = c_last
-            all_customers = list(self.customer.find(search_fields, return_fields, session=s)) # sort by C_FIRST is missing(!)
+            all_customers = list(self.customer.find(search_fields, return_fields, session=s)) # .sort([("NO_O_ID", 1)]) sort by C_FIRST is missing(!)
             namecnt = len(all_customers)
             assert namecnt > 0
             index = (namecnt-1)/2
