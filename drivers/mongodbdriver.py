@@ -1177,7 +1177,10 @@ class MongodbDriver(AbstractDriver):
                 return (True, txn_callback(session, params))
         except pymongo.errors.OperationFailure as exc:
             if exc.code in (24, 112, 244):  # LockTimeout, WriteConflict, TransactionAborted
-                logging.debug("OperationFailure with error code: %d during operation: %s" % (exc.code, name))
+                ename = LockTimeout
+                if exc.code == 112: ename = WriteConflict
+                if exc.code == 244: ename = TransactionAborted
+                logging.debug("OperationFailure with error code: %d (%s) during operation: %s" % (exc.code, ename, name))
                 return (False, None)
             print "Failed with unknown OperationFailure: %d" % exc.code
             print(exc.details)
@@ -1191,20 +1194,20 @@ class MongodbDriver(AbstractDriver):
 
     # Should we retry txns within the same session or start a new one?
     def run_transaction_with_retries(self, client, txn_callback, name, params):
-        txn_counter = 0
+        txn_retry_counter = 0
         with client.start_session(causal_consistency=self.session_opts["causal_consistency"]) as s:
             while True:
                 (ok, value) = self.run_transaction(client, txn_callback, s, name, params)
                 if ok:
-                    if txn_counter > 0:
-                        logging.debug("Committed operation %s after %d retries" % (name, txn_counter))
+                    if txn_retry_counter > 0:
+                        logging.debug("Committed operation %s after %d retries" % (name, txn_retry_counter))
                     return value
                 ## IF
 
                 # TODO: should we backoff a little bit before retry?
-                txn_counter += 1
-                sleep(txn_counter * .1)
-                logging.debug("txn retry number for %s: %d" % (name, txn_counter))
+                txn_retry_counter += 1
+                sleep(txn_retry_counter * .1)
+                logging.debug("txn retry number for %s: %d" % (name, txn_retry_counter))
             ## WHILE
     ## DEF
 
