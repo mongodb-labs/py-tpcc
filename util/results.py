@@ -100,9 +100,10 @@ class Results:
         else:
             duration = self.stop - self.start
         
-        col_width = 16
-        total_width = (col_width*4)+2
-        f = "\n  " + (("%-" + str(col_width) + "s")*4)
+        col_width = 18
+        num_columns = 7
+        total_width = (col_width*num_columns)+2
+        f = "\n  " + (("%-" + str(col_width) + "s")*num_columns)
         line = "-"*total_width
 
         ret = u"" + "="*total_width + "\n"
@@ -110,21 +111,29 @@ class Results:
             ret += "Data Loading Time: %d seconds\n\n" % (load_time)
         
         ret += "Execution Results after %d seconds\n%s" % (duration, line)
-        ret += f % ("", "Executed", u"Time (µs)", "Rate")
+        ret += f % ("", "Executed", u"Time (µs)", u"Rate", u"Rate/Thread",u"% Count", u"% Time")
         
         total_time = 0
         total_cnt = 0
+        for txn in self.txn_counters.keys():
+            txn_time = self.txn_times[txn]
+            txn_cnt = self.txn_counters[txn]
+            total_time += txn_time
+            total_cnt += txn_cnt
+
         for txn in sorted(self.txn_counters.keys()):
             txn_time = self.txn_times[txn]
             txn_cnt = self.txn_counters[txn]
             rate = u"%.02f txn/s" % ((txn_cnt / txn_time))
-            ret += f % (txn, str(txn_cnt), str(txn_time), rate)
+            ratePerThread = u"%.02f txn/s" % ((txn_cnt / txn_time / threads))
+            percCnt = u"%5.2f" % ( (100.0*txn_cnt / total_cnt) )
+            percTime = u"%5.2f" % ( (100.0*txn_time / total_time) )
+            ret += f % (txn, str(txn_cnt), str(txn_time), rate, ratePerThread, percCnt, percTime)
             
-            total_time += txn_time
-            total_cnt += txn_cnt
         ret += "\n" + ("-"*total_width)
         total_rate = "%.02f txn/s" % ((total_cnt / total_time))
-        ret += f % ("TOTAL", str(total_cnt), str(total_time), total_rate)
+        total_rate_per_thread = "%.02f txn/s" % ((total_cnt / total_time / threads))
+        ret += f % ("TOTAL", str(total_cnt), str(total_time), total_rate, total_rate_per_thread, "", "")
         if driver != None:
             print(driver)
             ret += "\n%s TpcM for %s, %s threads, %s txn %s findAndModify: \t  %d  (%d total orders %d sec duration, batch writes %s) " % (
