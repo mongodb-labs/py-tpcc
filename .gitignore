@@ -1,4 +1,5 @@
+*.swp
 *.pyc
 .#kate-*
 *.config
-results.log
+*.log
