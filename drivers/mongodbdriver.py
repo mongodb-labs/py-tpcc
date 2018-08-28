@@ -681,8 +681,6 @@ class MongodbDriver(AbstractDriver):
 
 
     def _doNewOrderTxn(self, s, params):
-        #print(self.w_stock, self.w_items, self.w_warehouses, self.w_districts, self.w_customers)
-
         w_id = params["w_id"]
         d_id = params["d_id"]
         c_id = params["c_id"]
@@ -695,18 +693,6 @@ class MongodbDriver(AbstractDriver):
         assert len(i_ids) > 0
         assert len(i_ids) == len(i_w_ids)
         assert len(i_ids) == len(i_qtys)
-
-        ## http://stackoverflow.com/q/3844931/
-        all_local = (not i_w_ids or [w_id] * len(i_w_ids) == i_w_ids)
-
-        items = list(self.item.find({"I_ID": {"$in": i_ids}}, {"_id":0, "I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1}, session=s))
-        ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
-        ## Note that this will happen with 1% of transactions on purpose.
-        if len(items) != len(i_ids):
-            if s: s.abort_transaction()
-            logging.debug("1% Abort transaction - expected")
-            return
-        ## IF
 
         ## ----------------
         ## Collect Information from WAREHOUSE, DISTRICT, and CUSTOMER
@@ -722,11 +708,6 @@ class MongodbDriver(AbstractDriver):
             d["D_NEXT_O_ID"]=d_next_o_id+1
             self.warehouse.update_one({"W_ID": w_id, "DISTRICT.D_ID": d_id}, {"$set": {"DISTRICT.$": d}})
         else:
-            # getWarehouseTaxRate
-            w = self.warehouse.find_one({"W_ID": w_id}, {"_id":0, "W_TAX": 1}, session=s)
-            assert w
-            w_tax = w["W_TAX"]
-
             # getDistrict
             if self.findAndModify:
                 d = self.district.find_one_and_update({"D_ID": d_id, "D_W_ID": w_id}, {"$inc":{"D_NEXT_O_ID":1}}, projection={"_id":0, "D_ID":1, "D_W_ID":1, "D_TAX": 1, "D_NEXT_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
@@ -740,7 +721,22 @@ class MongodbDriver(AbstractDriver):
             d_tax = d["D_TAX"]
             d_next_o_id = d["D_NEXT_O_ID"]
 
+            # getWarehouseTaxRate
+            w = self.warehouse.find_one({"W_ID": w_id}, {"_id":0, "W_TAX": 1}, session=s)
+            assert w
+            w_tax = w["W_TAX"]
         ## IF
+
+        # fetch matching items and see if they are all valid
+        items = list(self.item.find({"I_ID": {"$in": i_ids}}, {"_id":0, "I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1}, session=s))
+        ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
+        ## Note that this will happen with 1% of transactions on purpose.
+        if len(items) != len(i_ids):
+            if s: s.abort_transaction()
+            logging.debug("1% Abort transaction (not all passed I_IDs are in ITEMS) - expected")
+            return
+        ## IF
+        items=sorted(items, key=lambda x: i_ids.index(x['I_ID']))
 
         # getCustomer
         c = self.customer.find_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_DISCOUNT": 1, "C_LAST": 1, "C_CREDIT": 1}, session=s)
@@ -757,6 +753,7 @@ class MongodbDriver(AbstractDriver):
 
         self.new_order.insert_one({"NO_O_ID": d_next_o_id, "NO_D_ID": d_id, "NO_W_ID": w_id}, session=s)
 
+        all_local = (0, 1)[[w_id] * len(i_w_ids) == i_w_ids]
         o = {"O_ID": d_next_o_id, "O_ENTRY_D": o_entry_d, "O_CARRIER_ID": o_carrier_id, "O_OL_CNT": ol_cnt, "O_ALL_LOCAL": all_local}
 
         if self.denormalize:
@@ -767,36 +764,30 @@ class MongodbDriver(AbstractDriver):
             o["O_C_ID"] = c_id
 
             # createOrder
-            #print("Creating order:", o)
             self.orders.insert_one(o, session=s)
         ## IF
 
+        items_details = zip(i_ids, i_w_ids, i_qtys)
+
         ## ----------------
-        ## XXX  OPTIMIZATION:
+        ## OPTIMIZATION:
         ## If all of the items are at the same warehouse, then we'll issue a single
-        ## request to get their information
-        ## NOTE: NOT IMPLEMENTED
+        ## request to get their information, otherwise we'll still issue a single request
         ## ----------------
-        stockInfos = None
-        if all_local and False:
-            # getStockInfo
-            if not self.denormalize:
-                allStocks = list(self.stock.find({"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, {"_id":0, "S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s))
-                assert len(allStocks) == ol_cnt
-            ## IF
-
-            stockInfos = { }
-
-            if self.denormalize:
-                pass
+        if not self.denormalize:
+            if all_local:
+                allStocks = list(self.stock.find({"S_I_ID": {"$in": i_ids},"S_W_ID": w_id}, {"_id":0, "S_I_ID": 1, "S_W_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s))
             else:
-                for si in allStocks:
-                    stockInfos["S_I_ID"] = si # HACK
+                field_list = ["S_I_ID", "S_W_ID"]
+                search_list = [dict(zip(field_list, ze)) for ze in item_details]
+                allStocks = list(self.stock.find({"$or": search_list}, {"_id":0, "S_I_ID": 1, "S_W_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s))
             ## IF
+            assert len(allStocks) == ol_cnt
+            allStocks = sorted(allStocks, key=lambda x: zip(i_ids, i_w_ids).index((x['S_I_ID'], x["S_W_ID"])))
         ## IF
 
         ## ----------------
-        ## Insert Order Item Information
+        ## Insert Order Line, Stock Item Information
         ## ----------------
         item_data = [ ]
         total = 0
@@ -822,13 +813,10 @@ class MongodbDriver(AbstractDriver):
                 allStock = self.item.find_one( {"I_ID": ol_i_id, "STOCK.S_W_ID": w_id}, {"_id":0, "STOCK.$": 1}, session=s)
                 si = allStock["STOCK"][0]
             else:
-                si = self.stock.find_one({"S_I_ID": ol_i_id, "S_W_ID": w_id}, {"_id":0, "S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s)
+                si = allStocks[i]
             ## IF
 
-            if si == None:
-               if s: s.abort_transaction()
-               logging.debug("1% bad order - expected (Failed to find S_I_ID: %d)" % (ol_i_id))
-               return
+            assert si
 
             s_quantity = si["S_QUANTITY"]
             s_ytd = si["S_YTD"]
@@ -1177,9 +1165,9 @@ class MongodbDriver(AbstractDriver):
                 return (True, txn_callback(session, params))
         except pymongo.errors.OperationFailure as exc:
             if exc.code in (24, 112, 244):  # LockTimeout, WriteConflict, TransactionAborted
-                ename = LockTimeout
-                if exc.code == 112: ename = WriteConflict
-                if exc.code == 244: ename = TransactionAborted
+                ename = "LockTimeout"
+                if exc.code == 112: ename = "WriteConflict"
+                if exc.code == 244: ename = "TransactionAborted"
                 logging.debug("OperationFailure with error code: %d (%s) during operation: %s" % (exc.code, ename, name))
                 return (False, None)
             print "Failed with unknown OperationFailure: %d" % exc.code
