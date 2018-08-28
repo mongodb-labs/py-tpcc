@@ -495,23 +495,6 @@ class MongodbDriver(AbstractDriver):
     ## DEF
 
 
-    def get_count(self, collection, match={}, session=None):
-        pipeline = [
-            {
-                "$match": match
-            },
-            {
-                "$count": "count"
-            }
-        ]
-
-        result = list(collection.aggregate(pipeline, session=session))
-        if not result:
-            return 0
-        return result[0]['count']
-    ## DEF
-
-
     def loadDataIntoDatabase(self):
         toDel=[]
 
@@ -1146,7 +1129,7 @@ class MongodbDriver(AbstractDriver):
 
         if self.denormalize:
             # not sure this is correct (it's not)
-            result = self.get_count(self.item,{"I_ID": {"$in": list(ol_ids)}, "STOCK": {"$elemMatch": {"S_W_ID": w_id, "S_QUANTITY": {"$lt": threshold}}}}, s)
+            result = self.stock.count({"I_ID": {"$in": list(ol_ids)}, "STOCK": {"$elemMatch": {"S_W_ID": w_id, "S_QUANTITY": {"$lt": threshold}}}}, s).count()
             logging.debug("Denormalized result of stock count is " + str(result))
         else:
             result = self.stock.find({"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}}).count()
@@ -1164,11 +1147,8 @@ class MongodbDriver(AbstractDriver):
             with session.start_transaction():
                 return (True, txn_callback(session, params))
         except pymongo.errors.OperationFailure as exc:
-            if exc.code in (24, 112, 244):  # LockTimeout, WriteConflict, TransactionAborted
-                ename = "LockTimeout"
-                if exc.code == 112: ename = "WriteConflict"
-                if exc.code == 244: ename = "TransactionAborted"
-                logging.debug("OperationFailure with error code: %d (%s) during operation: %s" % (exc.code, ename, name))
+            if exc.has_error_label("TransientTransactionError"): # exc.code in (24, 112, 244):  # LockTimeout, WriteConflict, TransactionAborted
+                logging.debug("OperationFailure with error code: %d (%s) during operation: %s" % (exc.code, exc.details, name))
                 return (False, None)
             print "Failed with unknown OperationFailure: %d" % exc.code
             print(exc.details)
