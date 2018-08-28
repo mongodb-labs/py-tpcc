@@ -767,23 +767,23 @@ class MongodbDriver(AbstractDriver):
             self.orders.insert_one(o, session=s)
         ## IF
 
-        items_details = zip(i_ids, i_w_ids, i_qtys)
 
         ## ----------------
         ## OPTIMIZATION:
         ## If all of the items are at the same warehouse, then we'll issue a single
         ## request to get their information, otherwise we'll still issue a single request
         ## ----------------
+        item_w_list = zip(i_ids, i_w_ids)
         if not self.denormalize:
             if all_local:
                 allStocks = list(self.stock.find({"S_I_ID": {"$in": i_ids},"S_W_ID": w_id}, {"_id":0, "S_I_ID": 1, "S_W_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s))
             else:
                 field_list = ["S_I_ID", "S_W_ID"]
-                search_list = [dict(zip(field_list, ze)) for ze in item_details]
+                search_list = [dict(zip(field_list, ze)) for ze in item_w_list]
                 allStocks = list(self.stock.find({"$or": search_list}, {"_id":0, "S_I_ID": 1, "S_W_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s))
             ## IF
             assert len(allStocks) == ol_cnt
-            allStocks = sorted(allStocks, key=lambda x: zip(i_ids, i_w_ids).index((x['S_I_ID'], x["S_W_ID"])))
+            allStocks = sorted(allStocks, key=lambda x: item_w_list.index((x['S_I_ID'], x["S_W_ID"])))
         ## IF
 
         ## ----------------
