@@ -65,7 +65,7 @@ class Executor:
             batch_txn_id = batch_result.startTransaction(txn)
             if debug: logging.debug("Executing '%s' transaction" % txn)
             try:
-                val = self.driver.executeTransaction(txn, params)
+                (val, retries) = self.driver.executeTransaction(txn, params)
             except KeyboardInterrupt:
                 return -1
             except (Exception, AssertionError), ex:
@@ -76,8 +76,8 @@ class Executor:
                 batch_result.abortTransaction(batch_txn_id)
                 continue
 
-            batch_result.stopTransaction(batch_txn_id)
-            global_result.stopTransaction(global_txn_id)
+            batch_result.stopTransaction(batch_txn_id, retries)
+            global_result.stopTransaction(global_txn_id, retries)
 
             if time.time() - start_batch > 60:
                 batch_result.stopBenchmark()

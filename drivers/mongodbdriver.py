@@ -231,6 +231,7 @@ class MongodbDriver(AbstractDriver):
     def __init__(self, ddl):
         super(MongodbDriver, self).__init__("mongodb", ddl)
         self.batchWrites = True
+        self.allDeliveriesInOneTransaction = False
         self.noTransactions = False
         self.findAndModify = False
         self.database = None
@@ -560,14 +561,30 @@ class MongodbDriver(AbstractDriver):
     def doDelivery(self, params):
         # two options, option one is to run a db transaction for each of 10 orders
 
+        if self.allDeliveriesInOneTransaction:
+            (value, retries) =  self.run_transaction_with_retries(self.client, self._doDelivery10Txn, "DELIVERY", params)
+            #if retries > 0: print "DELIVERY had " + str(retries) + " retries"
+            return (value, retries)
+        result = [ ]
+        retries = 0
+        for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):    # there will be as many orders as districts per warehouse (10)
+            params["d_id"]=d_id
+            (r, rt) = self.run_transaction_with_retries(self.client, self._doDeliveryTxn, "DELIVERY", params)
+            retries += rt
+            result.append(r)
+        #if retries > 0: print "10 DELIVERIES had " + str(retries) + " retries"
+        return (result, retries)
+    ## DEF
+
+    def _doDelivery10Txn(self, s, params):
         result = [ ]
         for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):    # there will be as many orders as districts per warehouse (10)
             params["d_id"]=d_id
-            r = self.run_transaction_with_retries(self.client, self._doDeliveryTxn, "delivery", params)
-            if r: result.append(r)
+            r = self._doDeliveryTxn(s,params)
+            if r:
+                result.append(r)
         return result
     ## DEF
-
 
     def _doDeliveryTxn(self, s, params):
             w_id = params["w_id"]
@@ -659,7 +676,9 @@ class MongodbDriver(AbstractDriver):
     ## doNewOrder
     ## ----------------------------------------------
     def doNewOrder(self, params):
-        return self.run_transaction_with_retries(self.client, self._doNewOrderTxn, "new order", params)
+        (value, retries) = self.run_transaction_with_retries(self.client, self._doNewOrderTxn, "NEW_ORDER", params)
+        #if retries > 0: print "NEW_ORDER had " + str(retries) + " retries"
+        return (value, retries)
     ## DEF
 
 
@@ -886,7 +905,9 @@ class MongodbDriver(AbstractDriver):
     ## doOrderStatus
     ## ----------------------------------------------
     def doOrderStatus(self, params):
-        return self.run_transaction_with_retries(self.client, self._doOrderStatusTxn, "order status", params)
+        (value, retries) = self.run_transaction_with_retries(self.client, self._doOrderStatusTxn, "ORDER_STATUS", params)
+        #if retries > 0: print "order status had " + str(retries) + " retries"
+        return (value, retries)
     ## DEF
 
 
@@ -958,7 +979,8 @@ class MongodbDriver(AbstractDriver):
     ## doPayment
     ## ----------------------------------------------
     def doPayment(self, params):
-        return self.run_transaction_with_retries(self.client, self._doPaymentTxn, "payment", params)
+        (value, retries) =  self.run_transaction_with_retries(self.client, self._doPaymentTxn, "PAYMENT", params)
+        return (value, retries)
     ## DEF
 
 
@@ -1073,8 +1095,8 @@ class MongodbDriver(AbstractDriver):
     ## does not require transaction
     ## ----------------------------------------------
     def doStockLevel(self, params):
-        if self.noTransactions: return (True, self._doStockLevelTxn(None, params))
-        # return self.run_transaction_with_retries(self.client, self._doStockLevelTxn, "stock level", params)
+        if self.noTransactions: return (self._doStockLevelTxn(None, params), 0)
+        return self.run_transaction_with_retries(self.client, self._doStockLevelTxn, "STOCK_LEVEL", params)
     ## DEF
 
 
@@ -1169,10 +1191,10 @@ class MongodbDriver(AbstractDriver):
                 if ok:
                     if txn_retry_counter > 0:
                         logging.debug("Committed operation %s after %d retries" % (name, txn_retry_counter))
-                    return value
+                    return (value, txn_retry_counter)
                 ## IF
 
-                # TODO: should we backoff a little bit before retry?
+                # backoff a little bit before retry
                 txn_retry_counter += 1
                 sleep(txn_retry_counter * .1)
                 logging.debug("txn retry number for %s: %d" % (name, txn_retry_counter))
