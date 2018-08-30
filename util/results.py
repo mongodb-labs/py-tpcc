@@ -137,7 +137,7 @@ class Results:
             ratePerThread = u"%.02f txn/s" % ((txn_cnt / txn_time / threads))
             percCnt = u"%5.2f" % ( (100.0*txn_cnt / total_cnt) )
             percTime = u"%5.2f" % ( (100.0*txn_time / total_time) )
-            ret += f % (txn, str(txn_cnt), str(txn_time), rate, ratePerThread, percCnt, percTime, str(txn_retries))
+            ret += f % (txn, str(txn_cnt), str(txn_time), rate, ratePerThread, percCnt, percTime, str(txn_retries)+"/"+str(100.00*txn_retries/txn_cnt)[:5]+"%")
 
         ret += "\n" + ("-"*total_width)
         total_rate = "%.02f txn/s" % ((total_cnt / total_time))
@@ -145,14 +145,14 @@ class Results:
         ret += f % ("TOTAL", str(total_cnt), str(total_time), total_rate, total_rate_per_thread, "", "", "")
         if driver != None:
             # print(driver)
-            ret += "\n%s TpmC for %s, %s threads, %s txn %s findAndModify:  %d  (%d total orders %d sec duration, batch writes %s %d retries) " % (
+            ret += "\n%s TpmC for %s, %s threads, %s txn %s findAndModify:  %d  (%d total orders %d sec duration, batch writes %s %d retries %s%%) " % (
                 time.strftime("%Y-%m-%d %H:%M:%S"),
                 ("normal", "denorm")[driver.denormalize],
                 threads,
                 ("with", "w/o ")[driver.noTransactions],
                 ("w/o ", "with")[driver.findAndModify],
                 round(self.txn_counters['NEW_ORDER']*60/duration), self.txn_counters['NEW_ORDER'], duration, 
-                ("off", "on")[driver.batchWrites], total_retries)
+                ("off", "on")[driver.batchWrites], total_retries, str(100.0*total_retries/total_cnt)[:5])
 
         return (ret.encode('ascii', "ignore"))
 ## CLASS
