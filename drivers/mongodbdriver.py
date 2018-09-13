@@ -308,8 +308,7 @@ class MongodbDriver(AbstractDriver):
                 sys.exit(1)
             userpassword=urllib.quote_plus(user)+':'+urllib.quote_plus(config['passwd'])+"@"
         if uri and host:
-            logging.error("Cannot specify both URI and host")
-            sys.exit(1)
+            uri = None  # host overrides uri since that one has a default
         if uri:
             real_uri = uri
             if uri[0:14] == "mongodb+srv://":
@@ -635,7 +634,7 @@ class MongodbDriver(AbstractDriver):
                 self.customer.update_one({"_id": c['_id'], "ORDERS.O_ID": o_id}, {"$set": {"ORDERS.$[o].O_CARRIER_ID": o_carrier_id, "ORDERS.$[o].ORDER_LINE.$[].OL_DELIVERY_D": ol_delivery_d}, "$inc": {"C_BALANCE": ol_total}}, array_filters=[{'o':{'O_ID':o_id}}],session=s)
             else:
                 ## getCId
-                o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"O_C_ID": 1, "_id":0}, session=s)
+                o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"O_C_ID": 1, "O_ID": 1, "O_D_ID": 1, "O_W_ID": 1, "_id":0}, session=s)
                 assert o != None
                 c_id = o["O_C_ID"]
 
