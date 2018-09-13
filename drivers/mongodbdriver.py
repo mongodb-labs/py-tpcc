@@ -174,7 +174,7 @@ TABLE_INDEXES = {
         [("S_W_ID", pymongo.ASCENDING), ("S_I_ID", pymongo.ASCENDING), ("S_QUANTITY", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_ORDERS:     [
-        [("O_ID", pymongo.ASCENDING), ("O_D_ID",pymongo.ASCENDING), ("O_W_ID",pymongo.ASCENDING), ("O_C_ID", pymongo.ASCENDING)],
+        [("O_W_ID", pymongo.ASCENDING), ("O_D_ID",pymongo.ASCENDING), ("O_ID",pymongo.ASCENDING), ("O_C_ID", pymongo.ASCENDING)],
         [("O_C_ID", pymongo.ASCENDING), ("O_D_ID",pymongo.ASCENDING), ("O_W_ID",pymongo.ASCENDING), ("O_ID",pymongo.DESCENDING), ("O_CARRIER_ID",pymongo.ASCENDING),("O_ENTRY_ID",pymongo.ASCENDING)]
     ],
     constants.TABLENAME_NEW_ORDER:  [
