@@ -170,8 +170,8 @@ TABLE_INDEXES = {
         [("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("C_LAST", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_STOCK:      [
-        "S_I_ID",
-        [("S_W_ID", pymongo.ASCENDING), ("S_I_ID", pymongo.ASCENDING), ("S_QUANTITY", pymongo.ASCENDING)]
+        [("S_W_ID", pymongo.ASCENDING), ("S_I_ID", pymongo.ASCENDING), ("S_QUANTITY", pymongo.ASCENDING)],
+        "S_I_ID"
     ],
     constants.TABLENAME_ORDERS:     [
         [("O_W_ID", pymongo.ASCENDING), ("O_D_ID",pymongo.ASCENDING), ("O_ID",pymongo.ASCENDING), ("O_C_ID", pymongo.ASCENDING)],
@@ -181,6 +181,7 @@ TABLE_INDEXES = {
         [("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING), ("_id", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_ORDER_LINE: [
+        [("OL_O_ID", pymongo.ASCENDING), ("OL_D_ID",pymongo.ASCENDING), ("OL_W_ID",pymongo.ASCENDING), ("OL_NUMBER",pymongo.ASCENDING)],
         [("OL_O_ID", pymongo.ASCENDING), ("OL_D_ID",pymongo.ASCENDING), ("OL_W_ID",pymongo.ASCENDING), ("OL_I_ID",pymongo.DESCENDING), ("OL_AMOUNT",pymongo.ASCENDING)]
     ],
 }
@@ -356,8 +357,10 @@ class MongodbDriver(AbstractDriver):
             for name in constants.ALL_TABLES:
                 self.__dict__[name.lower()] = self.database[name]
                 if load_indexes and name in TABLE_INDEXES:
+                    uniq = True
                     for index in TABLE_INDEXES[name]:
-                        self.database[name].create_index(index)
+                        self.database[name].create_index(index, unique=uniq)
+                        uniq = False
                 ## IF
             ## FOR
         else:
