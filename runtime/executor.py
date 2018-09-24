@@ -76,6 +76,11 @@ class Executor:
                 batch_result.abortTransaction(batch_txn_id)
                 continue
 
+            if val is None:
+                global_result.abortTransaction(global_txn_id, retries)
+                batch_result.abortTransaction(batch_txn_id, retries)
+                continue
+
             batch_result.stopTransaction(batch_txn_id, retries)
             global_result.stopTransaction(global_txn_id, retries)
 

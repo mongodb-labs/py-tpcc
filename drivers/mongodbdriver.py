@@ -1094,11 +1094,10 @@ class MongodbDriver(AbstractDriver):
 
     ## ----------------------------------------------
     ## doStockLevel
-    ## does not require transaction
+    ## never requires transaction
     ## ----------------------------------------------
     def doStockLevel(self, params):
-        if self.noTransactions: return (self._doStockLevelTxn(None, params), 0)
-        return self.run_transaction_with_retries(self.client, self._doStockLevelTxn, "STOCK_LEVEL", params)
+        return (self._doStockLevelTxn(None, params), 0)
     ## DEF
 
 
@@ -1193,6 +1192,8 @@ class MongodbDriver(AbstractDriver):
                 if ok:
                     if txn_retry_counter > 0:
                         logging.debug("Committed operation %s after %d retries" % (name, txn_retry_counter))
+                    if value is None: # account for the 1% aborted operations in the retries count
+                        txn_retry_counter = txn_retry_counter+1
                     return (value, txn_retry_counter)
                 ## IF
 

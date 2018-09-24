@@ -59,11 +59,13 @@ class Results:
         self.running[id] = (txn, time.time())
         return id
 
-    def abortTransaction(self, id):
+    def abortTransaction(self, id, retries=0):
         """Abort a transaction and discard its times"""
         assert id in self.running
         txn_name, txn_start = self.running[id]
         del self.running[id]
+        total_retries = self.txn_retries.get(txn_name, 0)
+        self.txn_retries[txn_name] = total_retries + retries
 
     def stopTransaction(self, id, retries=0):
         """Record that the benchmark completed an invocation of the given transaction"""
