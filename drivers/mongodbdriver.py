@@ -178,7 +178,7 @@ TABLE_INDEXES = {
         [("O_C_ID", pymongo.ASCENDING), ("O_D_ID",pymongo.ASCENDING), ("O_W_ID",pymongo.ASCENDING), ("O_ID",pymongo.DESCENDING), ("O_CARRIER_ID",pymongo.ASCENDING),("O_ENTRY_ID",pymongo.ASCENDING)]
     ],
     constants.TABLENAME_NEW_ORDER:  [
-        [("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING), ("_id", pymongo.ASCENDING)]
+        [("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_ORDER_LINE: [
         [("OL_O_ID", pymongo.ASCENDING), ("OL_D_ID",pymongo.ASCENDING), ("OL_W_ID",pymongo.ASCENDING), ("OL_NUMBER",pymongo.ASCENDING)],
@@ -199,7 +199,7 @@ DENORMALIZED_TABLE_INDEXES = {
         [("C_D_ID", pymongo.ASCENDING), ("C_W_ID", pymongo.ASCENDING), ("ORDERS.O_ID", pymongo.ASCENDING)]
     ],
     constants.TABLENAME_NEW_ORDER:  [
-        [("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING), ("_id", pymongo.ASCENDING)]
+        [("NO_D_ID",pymongo.ASCENDING), ("NO_W_ID",pymongo.ASCENDING),  ("NO_O_ID", pymongo.ASCENDING) ]
     ],
 
 }
@@ -596,12 +596,12 @@ class MongodbDriver(AbstractDriver):
         # for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):    # there will be as many orders as districts per warehouse (10)
             ## getNewOrder
             if self.findAndModify:
-                no = self.new_order.find_one_and_update({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"$set":{"inProg":True}}, projection={"NO_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
+                no = self.new_order.find_one_and_update({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"$set":{"inProg":True}}, projection={"_id":0, "NO_D_ID":1, "NO_W_ID":1, "NO_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
                 if no == None:
                     ## No orders for this district: skip it. Note: This must be reported if > 1%
                     return None # continue
             else:
-                no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
+                no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"_id":0, "NO_D_ID":1, "NO_W_ID":1, "NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
                 no_converted_cursor=list(no_cursor)
                 if len(no_converted_cursor) == 0:
                     ## No orders for this district: skip it. Note: This must be reported if > 1%
@@ -658,7 +658,7 @@ class MongodbDriver(AbstractDriver):
             ## IF
 
             ## deleteNewOrder
-            self.new_order.delete_one({"_id": no['_id']}, session=s)
+            self.new_order.delete_one(no, session=s)
 
             # These must be logged in the "result file" according to TPC-C 2.7.2.2 (page 39)
             # We remove the queued time, completed time, w_id, and o_carrier_id: the client can figure
