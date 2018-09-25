@@ -119,32 +119,38 @@ class Results:
             ret += "Data Loading Time: %d seconds\n\n" % (load_time)
 
         ret += "Execution Results after %d seconds\n%s" % (duration, line)
-        ret += f % ("", "Executed", u"Time (µs)", u"Rate", u"Rate/Thread",u"% Count", u"% Time", u"# Retries")
+        ret += f % ("", "Completed", u"DBTxnStarted",u"Time (µs)", u"Rate", u"% Count", u"% Time", u"# Retries+aborts")
 
         total_time = 0
         total_cnt = 0
         total_retries = 0
+        total_dbtxn = 0
         for txn in self.txn_counters.keys():
             txn_time = self.txn_times[txn]
             txn_cnt = self.txn_counters[txn]
+            dbtxn_count = txn_cnt
+            if txn == "DELIVERY":
+               dbtxn_count = txn_cnt*10
             total_time += txn_time
             total_cnt += txn_cnt
+            total_dbtxn += dbtxn_count
 
         for txn in sorted(self.txn_counters.keys()):
             txn_time = self.txn_times[txn]
             txn_cnt = self.txn_counters[txn]
+            dbtxn_count = txn_cnt
+            if txn == "DELIVERY":
+               dbtxn_count = txn_cnt*10
             txn_retries = self.txn_retries[txn]
             total_retries += txn_retries
             rate = u"%.02f txn/s" % ((txn_cnt / txn_time))
-            ratePerThread = u"%.02f txn/s" % ((txn_cnt / txn_time / threads))
             percCnt = u"%5.2f" % ( (100.0*txn_cnt / total_cnt) )
             percTime = u"%5.2f" % ( (100.0*txn_time / total_time) )
-            ret += f % (txn, str(txn_cnt), str(txn_time), rate, ratePerThread, percCnt, percTime, str(txn_retries)+"/"+str(100.00*txn_retries/txn_cnt)[:5]+"%")
+            ret += f % (txn, str(txn_cnt), str(dbtxn_count), str(txn_time), rate, percCnt, percTime, str(txn_retries)+"/"+str(100.00*txn_retries/dbtxn_count)[:5]+"%")
 
         ret += "\n" + ("-"*total_width)
         total_rate = "%.02f txn/s" % ((total_cnt / total_time))
-        total_rate_per_thread = "%.02f txn/s" % ((total_cnt / total_time / threads))
-        ret += f % ("TOTAL", str(total_cnt), str(total_time), total_rate, total_rate_per_thread, "", "", "")
+        ret += f % ("TOTAL", str(total_cnt), str(total_dbtxn), str(total_time), total_rate, "", "", "")
         if driver != None:
             # print(driver)
             ret += "\n%s TpmC for %s, %s threads, %s txn %s findAndModify:  %d  (%d total orders %d sec duration, batch writes %s %d retries %s%%) " % (
@@ -154,7 +160,7 @@ class Results:
                 ("with", "w/o ")[driver.noTransactions],
                 ("w/o ", "with")[driver.findAndModify],
                 round(self.txn_counters['NEW_ORDER']*60/duration), self.txn_counters['NEW_ORDER'], duration, 
-                ("off", "on")[driver.batchWrites], total_retries, str(100.0*total_retries/total_cnt)[:5])
+                ("off", "on")[driver.batchWrites], total_retries, str(100.0*total_retries/total_dbtxn)[:5])
 
         return (ret.encode('ascii', "ignore"))
 ## CLASS
