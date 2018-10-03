@@ -104,7 +104,7 @@ def startLoading(driverClass, scaleParameters, args, config):
 ## ==============================================
 def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
     driver = driverClass(args['ddl'])
-    assert driver != None
+    assert driver != None, "Driver in loadFunc is none!"
     logging.debug("Starting client execution: %s [warehouses=%d]" % (driver, len(w_ids)))
 
     config['load'] = True
@@ -146,7 +146,7 @@ def startExecution(driverClass, scaleParameters, args, config):
     for asyncr in worker_results:
         asyncr.wait()
         r = asyncr.get()
-        assert r != None, "No results object returned!"
+        assert r != None, "No results object returned by thread!"
         if type(r) == int and r == -1: sys.exit(1)
         total_results.append(r)
     ## FOR
@@ -159,7 +159,7 @@ def startExecution(driverClass, scaleParameters, args, config):
 ## ==============================================
 def executorFunc(driverClass, scaleParameters, args, config, debug):
     driver = driverClass(args['ddl'])
-    assert driver != None
+    assert driver != None, "No driver in executorFunc"
     logging.debug("Starting client execution: %s" % driver)
 
     config['execute'] = True
@@ -265,7 +265,7 @@ if __name__ == '__main__':
             driver.executeFinish()
         else:
             results = startExecution(driverClass, scaleParameters, args, config)
-        assert results
+        assert results, "No results from execution for %d client!" % args['clients']
         logging.info("Final Results")
         logging.info("Threads: %d" % args['clients'])
         logging.info(results.show(load_time, driver, args['clients']))

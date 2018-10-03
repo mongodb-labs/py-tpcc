@@ -52,7 +52,7 @@ class Executor:
     
     def execute(self, duration):
         global_result = results.Results()
-        assert global_result
+        assert global_result, "Failed to return a Results object"
         logging.debug("Executing benchmark for %d seconds" % duration)
         start = global_result.startBenchmark()
         debug = logging.getLogger().isEnabledFor(logging.DEBUG)
@@ -71,9 +71,10 @@ class Executor:
             except (Exception, AssertionError), ex:
                 logging.warn("Failed to execute Transaction '%s': %s" % (txn, ex))
                 traceback.print_exc(file=sys.stdout)
-                if self.stop_on_error: raise
+                print "Aborting some transaction with some error %s %s" % (txn, ex)
                 global_result.abortTransaction(global_txn_id)
                 batch_result.abortTransaction(batch_txn_id)
+                if self.stop_on_error: raise
                 continue
 
             if val is None:
@@ -84,9 +85,9 @@ class Executor:
             batch_result.stopTransaction(batch_txn_id, retries)
             global_result.stopTransaction(global_txn_id, retries)
 
-            if time.time() - start_batch > 60:
+            if time.time() - start_batch > 600: # every 10 minutes
                 batch_result.stopBenchmark()
-                logging.debug(batch_result.show())
+                logging.info(batch_result.show())
                 batch_result = results.Results()
                 start_batch = batch_result.startBenchmark()
 
@@ -114,7 +115,7 @@ class Executor:
         elif x <= 43 + 4 + 4 + 4: ## 43%
             txn, params = (constants.TransactionTypes.PAYMENT, self.generatePaymentParams())
         else: ## 45%
-            assert x > 100 - 45
+            assert x > 100 - 45, "Random number wasn't within specified range or percentages don't add up (%d)" % x
             txn, params = (constants.TransactionTypes.NEW_ORDER, self.generateNewOrderParams())
         
         return (txn, params)
@@ -216,7 +217,7 @@ class Executor:
         else:
             ## select in range [1, num_warehouses] excluding w_id
             c_w_id = rand.numberExcluding(self.scaleParameters.starting_warehouse, self.scaleParameters.ending_warehouse, w_id)
-            assert c_w_id != w_id
+            assert c_w_id != w_id, "Failed to generate W_ID that's not equal to C_W_ID"
             c_d_id = self.makeDistrictId()
 
         ## 60%: payment by last name
@@ -224,7 +225,7 @@ class Executor:
             c_last = rand.makeRandomLastName(self.scaleParameters.customersPerDistrict)
         ## 40%: payment by id
         else:
-            assert y > 60
+            assert y > 60, "Bad random payment value generated %d" % y
             c_id = self.makeCustomerId()
 
         return makeParameterDict(locals(), "w_id", "d_id", "h_amount", "c_w_id", "c_d_id", "c_id", "c_last", "h_date")

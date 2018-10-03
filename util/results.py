@@ -41,15 +41,15 @@ class Results:
 
     def startBenchmark(self):
         """Mark the benchmark as having been started"""
-        assert self.start == None
+        assert self.start == None, "start is not none on start"
         logging.debug("Starting benchmark statistics collection")
         self.start = time.time()
         return self.start
 
     def stopBenchmark(self):
         """Mark the benchmark as having been stopped"""
-        assert self.start != None
-        assert self.stop == None
+        assert self.start != None, "start is none on stop"
+        assert self.stop == None, "stop isn't none on stop"
         logging.debug("Stopping benchmark statistics collection")
         self.stop = time.time()
 
@@ -61,7 +61,7 @@ class Results:
 
     def abortTransaction(self, id, retries=0):
         """Abort a transaction and discard its times"""
-        assert id in self.running
+        assert id in self.running, "Didn't find self in running"
         txn_name, txn_start = self.running[id]
         del self.running[id]
         total_retries = self.txn_retries.get(txn_name, 0)
@@ -69,7 +69,7 @@ class Results:
 
     def stopTransaction(self, id, retries=0):
         """Record that the benchmark completed an invocation of the given transaction"""
-        assert id in self.running
+        assert id in self.running, "Didn't find self in running"
         txn_name, txn_start = self.running[id]
         del self.running[id]
 
