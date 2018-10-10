@@ -309,7 +309,7 @@ class MongodbDriver(AbstractDriver):
             return
 
         self.database = self.client[str(config['name'])]
-        if self.denormalize: logging.info("Using denormalized data model")
+        if self.denormalize: logging.debug("Using denormalized data model")
 
         if config["reset"]:
             logging.info("Deleting database '%s'" % self.database.name)
