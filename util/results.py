@@ -36,6 +36,8 @@ class Results:
 
         self.txn_counters = { }
         self.txn_times = { }
+        self.txn_mins = { }
+        self.txn_maxs = { }
         self.txn_retries = { }
         self.running = { }
 
@@ -83,13 +85,25 @@ class Results:
         total_cnt = self.txn_counters.get(txn_name, 0)
         self.txn_counters[txn_name] = total_cnt + 1
 
+        min_time = self.txn_mins.get(txn_name, 10000000)
+        if duration < min_time:
+            self.txn_mins[txn_name] = duration
+
+        max_time = self.txn_maxs.get(txn_name, 0)
+        if duration > max_time:
+            self.txn_maxs[txn_name] = duration
+
     def append(self, r):
         for txn_name in r.txn_counters.keys():
             orig_cnt = self.txn_counters.get(txn_name, 0)
+            orig_min = self.txn_mins.get(txn_name, 10000000)
+            orig_max = self.txn_maxs.get(txn_name, 0)
             orig_time = self.txn_times.get(txn_name, 0)
             orig_retries = self.txn_retries.get(txn_name, 0)
 
             self.txn_counters[txn_name] = orig_cnt + r.txn_counters[txn_name]
+            self.txn_mins[txn_name] = orig_min if orig_min < r.txn_mins[txn_name] else r.txn_mins[txn_name]
+            self.txn_maxs[txn_name] = orig_max if orig_max > r.txn_maxs[txn_name] else r.txn_maxs[txn_name]
             self.txn_times[txn_name] = orig_time + r.txn_times[txn_name]
             self.txn_retries[txn_name] = orig_retries + r.txn_retries[txn_name]
             #logging.debug("%s [cnt=%d, time=%d]" % (txn_name, self.txn_counters[txn_name], self.txn_times[txn_name]))
@@ -109,7 +123,7 @@ class Results:
             duration = self.stop - self.start
 
         col_width = 18
-        num_columns = 8
+        num_columns = 11
         total_width = (col_width*num_columns)+2
         f = "\n  " + (("%-" + str(col_width) + "s")*num_columns)
         line = "-"*total_width
@@ -119,7 +133,7 @@ class Results:
             ret += "Data Loading Time: %d seconds\n\n" % (load_time)
 
         ret += "Execution Results after %d seconds\n%s" % (duration, line)
-        ret += f % ("", "Completed", u"DBTxnStarted",u"Time (µs)", u"Rate", u"% Count", u"% Time", u"# Retries+aborts")
+        ret += f % ("", "Completed", u"DBTxnStarted",u"Time (µs)", u"Rate per thread", u"% Count", u"% Time", u"# Retries+aborts", u"min latency ms", u"avg latency ms", u"max latency ms")
 
         total_time = 0
         total_cnt = 0
@@ -138,19 +152,25 @@ class Results:
         for txn in sorted(self.txn_counters.keys()):
             txn_time = self.txn_times[txn]
             txn_cnt = self.txn_counters[txn]
+            min_latency = u"%5.2f" % (1000 * self.txn_mins[txn])
+            max_latency = u"%6.2f" % (1000 * self.txn_maxs[txn])
             dbtxn_count = txn_cnt
             if txn == "DELIVERY":
                dbtxn_count = txn_cnt*10
             txn_retries = self.txn_retries[txn]
             total_retries += txn_retries
             rate = u"%.02f txn/s" % ((txn_cnt / txn_time))
-            percCnt = u"%5.2f" % ( (100.0*txn_cnt / total_cnt) )
-            percTime = u"%5.2f" % ( (100.0*txn_time / total_time) )
-            ret += f % (txn, str(txn_cnt), str(dbtxn_count), str(txn_time), rate, percCnt, percTime, str(txn_retries)+"/"+str(100.00*txn_retries/dbtxn_count)[:5]+"%")
+            avg_latency = u"%5.02f" % (1000* (txn_time / txn_cnt))
+            percCnt = u"%5.02f" % ( (100.0*txn_cnt / total_cnt) )
+            percTime = u"%5.02f" % ( (100.0*txn_time / total_time) )
+            ret += f % (txn, str(txn_cnt), str(dbtxn_count), str(txn_time), rate, percCnt, percTime, 
+                str(txn_retries)+"/"+str(100.00*txn_retries/dbtxn_count)[:5]+"%",
+                min_latency, avg_latency, max_latency)
 
+        if 'NEW_ORDER' not in self.txn_counters: self.txn_counters['NEW_ORDER'] = 0
         ret += "\n" + ("-"*total_width)
         total_rate = "%.02f txn/s" % ((total_cnt / total_time))
-        ret += f % ("TOTAL", str(total_cnt), str(total_dbtxn), str(total_time), total_rate, "", "", "")
+        ret += f % ("TOTAL", str(total_cnt), str(total_dbtxn), str(total_time), total_rate, "", "", "", "", "", "")
         if driver != None:
             # print(driver)
             ret += "\n%s TpmC for %s, %s threads, %s txn %s findAndModify:  %d  (%d total orders %d sec duration, batch writes %s %d retries %s%%) " % (
