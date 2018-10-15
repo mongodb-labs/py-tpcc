@@ -247,15 +247,11 @@ class MongodbDriver(AbstractDriver):
         self.session_opts["causal_consistency"] = False
 
         if self.secondary_reads:
-            # The entire transaction--reads and writes--must execute against the primary
-            # Print an error and exit if they want non-primary read preference
-            print("Non-primary reads are not supported for this workload")
-            sys.exit(1)
-            # self.client_opts["read_preference"] = "nearest"
+            self.client_opts["read_preference"] = "secondaryPreferred"
             # Let's explicitly enable causal if secondary reads are allowed
             # self.session_opts["causal_consistency"] = True
         else:
-            self.client_opts["read_preference"] = "secondaryPreferred"
+            self.client_opts["read_preference"] = "primary"
         ## IF
 
         self.denormalize = config['denormalize'] == 'True'

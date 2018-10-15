@@ -173,7 +173,7 @@ class Results:
         ret += f % ("TOTAL", str(total_cnt), str(total_dbtxn), str(total_time), total_rate, "", "", "", "", "", "")
         if driver != None:
             # print(driver)
-            ret += "\n%s TpmC for %s, %s threads, %s txn %d warehouses:  %d  (%d total orders %d sec duration, batch writes %s %d retries %s%% %s findAndModify) " % (
+            ret += "\n%s TpmC for %s, %s threads, %s txn %d warehouses:  %d  (%d total orders %d sec duration, batch writes %s %d retries %s%% %s findAndModify %s) " % (
                 time.strftime("%Y-%m-%d %H:%M:%S"),
                 ("normal", "denorm")[driver.denormalize],
                 threads,
@@ -181,7 +181,8 @@ class Results:
                 warehouses,
                 round(self.txn_counters['NEW_ORDER']*60/duration), self.txn_counters['NEW_ORDER'], duration, 
                 ("off", "on")[driver.batchWrites], total_retries, str(100.0*total_retries/total_dbtxn)[:5],
-                ("w/o ", "with")[driver.findAndModify])
+                ("w/o ", "with")[driver.findAndModify],
+                driver.client_opts["read_preference"])
 
         return (ret.encode('ascii', "ignore"))
 ## CLASS
