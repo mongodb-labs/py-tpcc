@@ -255,7 +255,7 @@ class MongodbDriver(AbstractDriver):
             # Let's explicitly enable causal if secondary reads are allowed
             # self.session_opts["causal_consistency"] = True
         else:
-            self.client_opts["read_preference"] = "primary"
+            self.client_opts["read_preference"] = "secondary"
         ## IF
 
         self.denormalize = config['denormalize'] == 'True'
@@ -499,7 +499,7 @@ class MongodbDriver(AbstractDriver):
             # them out
             # If there are no order lines, SUM returns null. There should always be order lines.
             assert ol_total != None, "ol_total is NULL: there are no order lines. This should not happen"
-            assert ol_total > 0.0
+            assert ol_total > 0.0, "ol_total is 0"
 
             return (d_id, o_id)   # result.append((d_id, o_id))
         ### FOR
@@ -943,7 +943,8 @@ class MongodbDriver(AbstractDriver):
     # Should we retry txns within the same session or start a new one?
     def run_transaction_with_retries(self, client, txn_callback, name, params):
         txn_retry_counter = 0
-        with client.start_session(causal_consistency=self.session_opts["causal_consistency"]) as s:
+        to = pymongo.client_session.TransactionOptions(read_concern=None, write_concern=None, read_preference=pymongo.read_preferences.Primary())
+        with client.start_session(default_transaction_options=to, causal_consistency=self.session_opts["causal_consistency"]) as s:
             while True:
                 (ok, value) = self.run_transaction(client, txn_callback, s, name, params)
                 if ok:
