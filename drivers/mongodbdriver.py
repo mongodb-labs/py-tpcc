@@ -432,14 +432,15 @@ class MongodbDriver(AbstractDriver):
             ol_delivery_d = params["ol_delivery_d"]
             d_id = params["d_id"]
         # for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):    # there will be as many orders as districts per warehouse (10)
+            comment = "DELIVERY " + str(d_id)
             ## getNewOrder
             if self.findAndModify:
-                no = self.new_order.find_one_and_update({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"$set":{"inProg":True}}, projection={"_id":0, "NO_D_ID":1, "NO_W_ID":1, "NO_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
+                no = self.new_order.find_one_and_update({"NO_D_ID": d_id, "NO_W_ID": w_id, "$comment": comment}, {"$set":{"inProg":True}}, projection={"_id":0, "NO_D_ID":1, "NO_W_ID":1, "NO_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
                 if no == None:
                     ## No orders for this district: skip it. Note: This must be reported if > 1%
                     return None # continue
             else:
-                no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"_id":0, "NO_D_ID":1, "NO_W_ID":1, "NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
+                no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id, "$comment": comment}, {"_id":0, "NO_D_ID":1, "NO_W_ID":1, "NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
                 no_converted_cursor=list(no_cursor)
                 if len(no_converted_cursor) == 0:
                     ## No orders for this district: skip it. Note: This must be reported if > 1%
@@ -453,9 +454,9 @@ class MongodbDriver(AbstractDriver):
 
             ## getCId
             if self.denormalize:
-                o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, session=s)
+                o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id, "$comment": comment}, session=s)
             else:
-                o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"O_C_ID": 1, "O_ID": 1, "O_D_ID": 1, "O_W_ID": 1, "_id":0}, session=s)
+                o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id, "$comment": comment}, {"O_C_ID": 1, "O_ID": 1, "O_D_ID": 1, "O_W_ID": 1, "_id":0}, session=s)
             assert o != None, "o cannot be none, delivery"
             c_id = o["O_C_ID"]
 
@@ -473,14 +474,15 @@ class MongodbDriver(AbstractDriver):
                 ## IF
 
                 ## updateOrders 
-                self.orders.update_one({"_id": o['_id']}, {"$set": {"O_CARRIER_ID": o_carrier_id, "ORDER_LINE.$[].OL_DELIVERY_D": ol_delivery_d}}, session=s)
+                self.orders.update_one({"_id": o['_id'], "$comment": comment}, {"$set": {"O_CARRIER_ID": o_carrier_id, "ORDER_LINE.$[].OL_DELIVERY_D": ol_delivery_d}}, session=s)
             else:
                 ## sumOLAmount
-                orderLines = self.order_line.find({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"_id":0, "OL_AMOUNT": 1}, session=s)
+                orderLines = self.order_line.find({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id, "$comment": comment}, {"_id":0, "OL_AMOUNT": 1}, session=s)
                 assert orderLines != None, "orderLines cannot be missing in delivery"
                 ol_total = sum([ol["OL_AMOUNT"] for ol in orderLines])
 
                 ## updateOrders
+                o["$comment"] = comment
                 self.orders.update_one(o, {"$set": {"O_CARRIER_ID": o_carrier_id}}, session=s)
 
                 ## updateOrderLines
@@ -489,9 +491,10 @@ class MongodbDriver(AbstractDriver):
             ## IF
 
             ## updateCustomer
-            self.customer.update_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"$inc": {"C_BALANCE": ol_total}}, session=s)
+            self.customer.update_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id, "$comment": comment}, {"$inc": {"C_BALANCE": ol_total}}, session=s)
 
             ## deleteNewOrder
+            no["$comment"] = comment
             self.new_order.delete_one(no, session=s)
 
             # These must be logged in the "result file" according to TPC-C 2.7.2.2 (page 39)
@@ -527,6 +530,7 @@ class MongodbDriver(AbstractDriver):
         i_w_ids = params["i_w_ids"]
         i_qtys = params["i_qtys"]
         s_dist_col = "S_DIST_%02d" % d_id
+        comment = "NEW_ORDER"
 
         assert len(i_ids) > 0, "No matching i_ids found for new order"
         assert len(i_ids) == len(i_w_ids), "different number of i_ids and i_w_ids"
@@ -538,24 +542,25 @@ class MongodbDriver(AbstractDriver):
 
         # getDistrict
         if self.findAndModify:
-            d = self.district.find_one_and_update({"D_ID": d_id, "D_W_ID": w_id}, {"$inc":{"D_NEXT_O_ID":1}}, projection={"_id":0, "D_ID":1, "D_W_ID":1, "D_TAX": 1, "D_NEXT_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
+            d = self.district.find_one_and_update({"D_ID": d_id, "D_W_ID": w_id, "$comment": comment}, {"$inc":{"D_NEXT_O_ID":1}}, projection={"_id":0, "D_ID":1, "D_W_ID":1, "D_TAX": 1, "D_NEXT_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
             assert d, "Couldn't find distict in new order"
         else:
-            d = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id}, {"_id":0, "D_ID":1, "D_W_ID":1, "D_TAX": 1, "D_NEXT_O_ID": 1}, session=s)
+            d = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id, "$comment": comment}, {"_id":0, "D_ID":1, "D_W_ID":1, "D_TAX": 1, "D_NEXT_O_ID": 1}, session=s)
             assert d, "Couldn't find distict in new order"
             # incrementNextOrderId
+            d["$comment"] = comment
             self.district.update_one(d, {"$inc": {"D_NEXT_O_ID": 1}}, session=s)
         ## IF
         d_tax = d["D_TAX"]
         d_next_o_id = d["D_NEXT_O_ID"]
 
         # getWarehouseTaxRate
-        w = self.warehouse.find_one({"W_ID": w_id}, {"_id":0, "W_TAX": 1}, session=s)
+        w = self.warehouse.find_one({"W_ID": w_id, "$comment": comment}, {"_id":0, "W_TAX": 1}, session=s)
         assert w, "Couldn't find warehouse in new order"
         w_tax = w["W_TAX"]
 
         # fetch matching items and see if they are all valid
-        items = list(self.item.find({"I_ID": {"$in": i_ids}}, {"_id":0, "I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1}, session=s))
+        items = list(self.item.find({"I_ID": {"$in": i_ids}, "$comment": comment}, {"_id":0, "I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1}, session=s))
         ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
         ## Note that this will happen with 1% of transactions on purpose.
         if len(items) != len(i_ids):
@@ -566,7 +571,7 @@ class MongodbDriver(AbstractDriver):
         items=sorted(items, key=lambda x: i_ids.index(x['I_ID']))
 
         # getCustomer
-        c = self.customer.find_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_DISCOUNT": 1, "C_LAST": 1, "C_CREDIT": 1}, session=s)
+        c = self.customer.find_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id, "$comment": comment}, {"C_DISCOUNT": 1, "C_LAST": 1, "C_CREDIT": 1}, session=s)
         assert c, "Couldn't find customer in new order"
         c_discount = c["C_DISCOUNT"]
 
@@ -597,11 +602,11 @@ class MongodbDriver(AbstractDriver):
         ## ----------------
         item_w_list = zip(i_ids, i_w_ids)
         if all_local:
-            allStocks = list(self.stock.find({"S_I_ID": {"$in": i_ids},"S_W_ID": w_id}, {"_id":0, "S_I_ID": 1, "S_W_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s))
+            allStocks = list(self.stock.find({"S_I_ID": {"$in": i_ids},"S_W_ID": w_id, "$comment": comment}, {"_id":0, "S_I_ID": 1, "S_W_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s))
         else:
             field_list = ["S_I_ID", "S_W_ID"]
             search_list = [dict(zip(field_list, ze)) for ze in item_w_list]
-            allStocks = list(self.stock.find({"$or": search_list}, {"_id":0, "S_I_ID": 1, "S_W_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s))
+            allStocks = list(self.stock.find({"$or": search_list, "$comment": comment}, {"_id":0, "S_I_ID": 1, "S_W_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s))
         ## IF
         assert len(allStocks) == ol_cnt, "allStocks length != ol_cnt"
         allStocks = sorted(allStocks, key=lambda x: item_w_list.index((x['S_I_ID'], x["S_W_ID"])))
@@ -654,8 +659,10 @@ class MongodbDriver(AbstractDriver):
 
             # updateStock
             if self.batchWrites:
+                si["$comment"] = comment
                 stockWrites.append(pymongo.UpdateOne(si, {"$set": {"S_QUANTITY": s_quantity, "S_YTD": s_ytd, "S_ORDER_CNT": s_order_cnt, "S_REMOTE_CNT": s_remote_cnt}}))
             else:
+                si["$comment"] = comment
                 self.stock.update_one(si, {"$set": {"S_QUANTITY": s_quantity, "S_YTD": s_ytd, "S_ORDER_CNT": s_order_cnt, "S_REMOTE_CNT": s_remote_cnt}}, session=s)
 
             if i_data.find(constants.ORIGINAL_STRING) != -1 and s_data.find(constants.ORIGINAL_STRING) != -1:
@@ -722,11 +729,12 @@ class MongodbDriver(AbstractDriver):
         d_id = params["d_id"]
         c_id = params["c_id"]
         c_last = params["c_last"]
+        comment = "ORDER_STATUS"
 
         assert w_id, pformat(params)
         assert d_id, pformat(params)
 
-        search_fields = {"C_W_ID": w_id, "C_D_ID": d_id}
+        search_fields = {"C_W_ID": w_id, "C_D_ID": d_id, "$comment": comment}
         return_fields = {"_id":0, "C_ID": 1, "C_FIRST": 1, "C_MIDDLE": 1, "C_LAST": 1, "C_BALANCE": 1}
 
         if c_id != None:
@@ -754,9 +762,9 @@ class MongodbDriver(AbstractDriver):
 
         # getLastOrder
         if self.denormalize:
-            order = self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_C_ID": c_id}, {"O_ID": 1, "O_CARRIER_ID": 1, "O_ENTRY_D": 1, "ORDER_LINE":1}, session=s).sort("O_ID", direction=pymongo.DESCENDING).limit(1)[0]
+            order = self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_C_ID": c_id, "$comment": comment}, {"O_ID": 1, "O_CARRIER_ID": 1, "O_ENTRY_D": 1, "ORDER_LINE":1}, session=s).sort("O_ID", direction=pymongo.DESCENDING).limit(1)[0]
         else:
-            order = self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_C_ID": c_id}, {"O_ID": 1, "O_CARRIER_ID": 1, "O_ENTRY_D": 1}, session=s).sort("O_ID", direction=pymongo.DESCENDING).limit(1)[0]
+            order = self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_C_ID": c_id, "$comment": comment}, {"O_ID": 1, "O_CARRIER_ID": 1, "O_ENTRY_D": 1}, session=s).sort("O_ID", direction=pymongo.DESCENDING).limit(1)[0]
         assert order, "No order found for customer!"
         o_id = order["O_ID"]
 
@@ -765,7 +773,7 @@ class MongodbDriver(AbstractDriver):
             assert constants.TABLENAME_ORDER_LINE in order, "No ORDER_LINE in order %s" % repr(order)
             orderLines = order[constants.TABLENAME_ORDER_LINE]
         else:
-            orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": o_id}, {"OL_SUPPLY_W_ID": 1, "OL_I_ID": 1, "OL_QUANTITY": 1, "OL_AMOUNT": 1, "OL_DELIVERY_D": 1}, session=s)
+            orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": o_id, "$comment": comment}, {"OL_SUPPLY_W_ID": 1, "OL_I_ID": 1, "OL_QUANTITY": 1, "OL_AMOUNT": 1, "OL_DELIVERY_D": 1}, session=s)
         ## IF
 
         return [ c, order, orderLines ]
@@ -790,30 +798,31 @@ class MongodbDriver(AbstractDriver):
         c_id = params["c_id"]
         c_last = params["c_last"]
         h_date = params["h_date"]
+        comment = "PAYMENT"
 
         if self.findAndModify:
-            w = self.warehouse.find_one_and_update({"W_ID": w_id}, {"$inc":{"H_AMOUNT":h_amount}}, projection={"W_NAME":1,"W_STREET_1":1,"W_STREET_2":1,"W_CITY":1,"W_STATE":1,"W_ZIP":1}, session=s)
+            w = self.warehouse.find_one_and_update({"W_ID": w_id, "$comment": comment}, {"$inc":{"H_AMOUNT":h_amount}}, projection={"W_NAME":1,"W_STREET_1":1,"W_STREET_2":1,"W_CITY":1,"W_STATE":1,"W_ZIP":1}, session=s)
             assert w, "Couldn't find warehouse in payment"
         else:
             # getWarehouse
-            w = self.warehouse.find_one({"W_ID": w_id}, {"W_NAME": 1, "W_STREET_1": 1, "W_STREET_2": 1, "W_CITY": 1, "W_STATE": 1, "W_ZIP": 1}, session=s)
+            w = self.warehouse.find_one({"W_ID": w_id, "$comment": comment}, {"W_NAME": 1, "W_STREET_1": 1, "W_STREET_2": 1, "W_CITY": 1, "W_STATE": 1, "W_ZIP": 1}, session=s)
             assert w, "Couldn't find warehouse in payment"
             # updateWarehouseBalance
-            self.warehouse.update_one({"_id": w["_id"]}, {"$inc": {"H_AMOUNT": h_amount}}, session=s)
+            self.warehouse.update_one({"_id": w["_id"], "$comment": comment}, {"$inc": {"H_AMOUNT": h_amount}}, session=s)
         ## IF
 
         # getDistrict
         if self.findAndModify:
-            d = self.district.find_one_and_update({"D_ID": d_id, "D_W_ID": w_id}, {"$inc":{"D_YTD":h_amount}}, projection={"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1},session=s)
+            d = self.district.find_one_and_update({"D_ID": d_id, "D_W_ID": w_id, "$comment": comment}, {"$inc":{"D_YTD":h_amount}}, projection={"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1},session=s)
             assert d, "Couldn't find district in payment"
         else:
-            d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1}, session=s)
+            d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id, "$comment": comment}, {"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1}, session=s)
             assert d, "Couldn't find distinct in payment"
             # updateDistrictBalance
-            self.district.update_one({"_id": d["_id"]},  {"$inc": {"D_YTD": h_amount}}, session=s)
+            self.district.update_one({"_id": d["_id"], "$comment": comment},  {"$inc": {"D_YTD": h_amount}}, session=s)
         ## IF
 
-        search_fields = {"C_W_ID": w_id, "C_D_ID": d_id}
+        search_fields = {"C_W_ID": w_id, "C_D_ID": d_id, "$comment": comment}
         return_fields = {"C_BALANCE": 0, "C_YTD_PAYMENT": 0, "C_PAYMENT_CNT": 0}
 
         if c_id != None:
@@ -854,7 +863,7 @@ class MongodbDriver(AbstractDriver):
         h = {"H_D_ID": d_id, "H_W_ID": w_id, "H_DATE": h_date, "H_AMOUNT": h_amount, "H_DATA": h_data}
 
         # updateCustomer
-        self.customer.update_one({"_id": c["_id"]}, customer_update, session=s)
+        self.customer.update_one({"_id": c["_id"], "$comment": comment}, customer_update, session=s)
 
         # insertHistory
         self.history.insert_one(h, session=s)
@@ -884,8 +893,9 @@ class MongodbDriver(AbstractDriver):
         w_id = params["w_id"]
         d_id = params["d_id"]
         threshold = params["threshold"]
+        comment = "STOCK_LEVEL"
 
-        d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"_id":0, "D_NEXT_O_ID": 1}, session=s)
+        d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id, "$comment": comment}, {"_id":0, "D_NEXT_O_ID": 1}, session=s)
 
         assert d, "Didn't find matching district in stock level"
         o_id = d["D_NEXT_O_ID"]
@@ -894,7 +904,7 @@ class MongodbDriver(AbstractDriver):
         # Outer Table: ORDER_LINE
         # Inner Table: STOCK
         if self.denormalize:
-            os = self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_ID": {"$lt": o_id, "$gte": o_id-20}}, {"ORDER_LINE.OL_I_ID": 1}, session=s)
+            os = self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_ID": {"$lt": o_id, "$gte": o_id-20}, "$comment": comment}, {"ORDER_LINE.OL_I_ID": 1}, session=s)
             assert os, "Didn't find matching orders in stock level"
 
             orderLines = [ ]
@@ -903,7 +913,7 @@ class MongodbDriver(AbstractDriver):
                 orderLines.extend(o["ORDER_LINE"])
             ## FOR
         else:
-            orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": {"$lt": o_id, "$gte": o_id-20}}, {"_id":0, "OL_I_ID": 1},  batch_size=1000,session=s)
+            orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": {"$lt": o_id, "$gte": o_id-20}, "$comment": comment}, {"_id":0, "OL_I_ID": 1},  batch_size=1000,session=s)
         ## IF
 
         assert orderLines, "orderLines should not be empty/null"
@@ -912,7 +922,7 @@ class MongodbDriver(AbstractDriver):
             ol_ids.add(ol["OL_I_ID"])
         ## FOR
 
-        result = self.stock.find({"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}}).count()
+        result = self.stock.find({"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}, "$comment": comment}).count()
         logging.debug("Normalized result of stock count is " + str(result))
 
         return int(result)
