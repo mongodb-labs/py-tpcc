@@ -255,7 +255,7 @@ class MongodbDriver(AbstractDriver):
             # Let's explicitly enable causal if secondary reads are allowed
             # self.session_opts["causal_consistency"] = True
         else:
-            self.client_opts["read_preference"] = "secondary"
+            self.client_opts["read_preference"] = "secondaryPreferred"
         ## IF
 
         self.denormalize = config['denormalize'] == 'True'
