@@ -268,7 +268,7 @@ if __name__ == '__main__':
         assert results, "No results from execution for %d client!" % args['clients']
         logging.info("Final Results")
         logging.info("Threads: %d" % args['clients'])
-        logging.info(results.show(load_time, driver, args['clients']))
+        logging.info(results.show(load_time, driver, args['clients'], args['warehouses']))
     ## IF
 
 ## MAIN
