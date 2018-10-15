@@ -114,7 +114,7 @@ class Results:
     def __str__(self):
         return self.show()
 
-    def show(self, load_time = None, driver=None, threads=1):
+    def show(self, load_time = None, driver=None, threads=1, warehouses=1):
         if self.start == None:
             return "Benchmark not started"
         if self.stop == None:
@@ -173,14 +173,15 @@ class Results:
         ret += f % ("TOTAL", str(total_cnt), str(total_dbtxn), str(total_time), total_rate, "", "", "", "", "", "")
         if driver != None:
             # print(driver)
-            ret += "\n%s TpmC for %s, %s threads, %s txn %s findAndModify:  %d  (%d total orders %d sec duration, batch writes %s %d retries %s%%) " % (
+            ret += "\n%s TpmC for %s, %s threads, %s txn %d warehouses:  %d  (%d total orders %d sec duration, batch writes %s %d retries %s%% %s findAndModify) " % (
                 time.strftime("%Y-%m-%d %H:%M:%S"),
                 ("normal", "denorm")[driver.denormalize],
                 threads,
                 ("with", "w/o ")[driver.noTransactions],
-                ("w/o ", "with")[driver.findAndModify],
+                warehouses,
                 round(self.txn_counters['NEW_ORDER']*60/duration), self.txn_counters['NEW_ORDER'], duration, 
-                ("off", "on")[driver.batchWrites], total_retries, str(100.0*total_retries/total_dbtxn)[:5])
+                ("off", "on")[driver.batchWrites], total_retries, str(100.0*total_retries/total_dbtxn)[:5],
+                ("w/o ", "with")[driver.findAndModify])
 
         return (ret.encode('ascii', "ignore"))
 ## CLASS
