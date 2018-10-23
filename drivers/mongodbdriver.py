@@ -207,6 +207,7 @@ class MongodbDriver(AbstractDriver):
     def __init__(self, ddl):
         super(MongodbDriver, self).__init__("mongodb", ddl)
         self.batchWrites = True
+        self.agg = False
         self.allDeliveriesInOneTransaction = False
         self.noTransactions = False
         self.findAndModify = False
@@ -450,7 +451,10 @@ class MongodbDriver(AbstractDriver):
 
             ## getCId
             if self.denormalize:
-                o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id, "$comment": comment}, session=s)
+                if self.findAndModify:
+                    o= self.orders.find_one_and_update({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id, "$comment": comment}, {"$set": {"O_CARRIER_ID": o_carrier_id, "ORDER_LINE.$[].OL_DELIVERY_D": ol_delivery_d}}, session=s)
+                else:
+                    o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id, "$comment": comment}, session=s)
             else:
                 o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id, "$comment": comment}, {"O_C_ID": 1, "O_ID": 1, "O_D_ID": 1, "O_W_ID": 1, "_id":0}, session=s)
             assert o != None, "o cannot be none, delivery"
@@ -470,7 +474,7 @@ class MongodbDriver(AbstractDriver):
                 ## IF
 
                 ## updateOrders 
-                self.orders.update_one({"_id": o['_id'], "$comment": comment}, {"$set": {"O_CARRIER_ID": o_carrier_id, "ORDER_LINE.$[].OL_DELIVERY_D": ol_delivery_d}}, session=s)
+                if not self.findAndModify: self.orders.update_one({"_id": o['_id'], "$comment": comment}, {"$set": {"O_CARRIER_ID": o_carrier_id, "ORDER_LINE.$[].OL_DELIVERY_D": ol_delivery_d}}, session=s)
             else:
                 ## sumOLAmount
                 orderLines = self.order_line.find({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id, "$comment": comment}, {"_id":0, "OL_AMOUNT": 1}, session=s)
@@ -550,11 +554,6 @@ class MongodbDriver(AbstractDriver):
         d_tax = d["D_TAX"]
         d_next_o_id = d["D_NEXT_O_ID"]
 
-        # getWarehouseTaxRate
-        w = self.warehouse.find_one({"W_ID": w_id, "$comment": comment}, {"_id":0, "W_TAX": 1}, session=s)
-        assert w, "Couldn't find warehouse in new order"
-        w_tax = w["W_TAX"]
-
         # fetch matching items and see if they are all valid
         items = list(self.item.find({"I_ID": {"$in": i_ids}, "$comment": comment}, {"_id":0, "I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1}, session=s))
         ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
@@ -565,6 +564,11 @@ class MongodbDriver(AbstractDriver):
             return
         ## IF
         items=sorted(items, key=lambda x: i_ids.index(x['I_ID']))
+
+        # getWarehouseTaxRate
+        w = self.warehouse.find_one({"W_ID": w_id, "$comment": comment}, {"_id":0, "W_TAX": 1}, session=s)
+        assert w, "Couldn't find warehouse in new order"
+        w_tax = w["W_TAX"]
 
         # getCustomer
         c = self.customer.find_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id, "$comment": comment}, {"C_DISCOUNT": 1, "C_LAST": 1, "C_CREDIT": 1}, session=s)
@@ -714,9 +718,8 @@ class MongodbDriver(AbstractDriver):
     ## doOrderStatus
     ## ----------------------------------------------
     def doOrderStatus(self, params):
-        (value, retries) = self.run_transaction_with_retries(self.client, self._doOrderStatusTxn, "ORDER_STATUS", params)
-        #if retries > 0: print "order status had " + str(retries) + " retries"
-        return (value, retries)
+        #(value, retries) = self.run_transaction_with_retries(self.client, self._doOrderStatusTxn, "ORDER_STATUS", params)
+        return (self._doOrderStatusTxn(None, params), 0)
     ## DEF
 
 
@@ -891,6 +894,28 @@ class MongodbDriver(AbstractDriver):
         threshold = params["threshold"]
         comment = "STOCK_LEVEL"
 
+        if self.agg and self.denormalize:
+            result = list(self.district.aggregate([
+                   {"$match":{"D_W_ID":w_id, "D_ID":d_id}}, 
+                   {"$limit":1},
+                   {"$project":{"_id":0, "O_ID":{ "$range" : [ { "$subtract" : [ "$D_NEXT_O_ID", 20 ] }, "$D_NEXT_O_ID" ] }}},
+                   {"$unwind" : "$O_ID"},
+                   {"$lookup":{"from":"ORDERS", "as":"o", "let":{"oid":"$O_ID"}, "pipeline":[
+                         {"$match":{"O_D_ID":d_id, "O_W_ID":w_id, "$expr":{"$eq":["$O_ID","$$oid"]}}},
+                         {"$project":{"_id":0, "I_IDS":"$ORDER_LINE.OL_I_ID"}}
+                   ]}}, 
+                   {"$unwind" : "$o"},
+                   {"$unwind" : "$o.I_IDS"},
+                   {"$lookup":{"from":"STOCK", "as":"o", "let":{"ids":"$o.I_IDS"}, "pipeline":[
+                         {"$match":{"S_W_ID":w_id, "S_QUANTITY": { "$lt": threshold }, "$expr":{"$eq":[ "$S_I_ID", "$$ids"]}}},
+                         {"$project":{"S_W_ID":1}}
+                   ]}},
+                   {"$unwind":"$o"},
+                   {"$count":"c"}
+                 ]))
+            if len(result) == 0: return 0
+            return int(result[0]["c"])
+
         d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id, "$comment": comment}, {"_id":0, "D_NEXT_O_ID": 1}, session=s)
 
         assert d, "Didn't find matching district in stock level"
@@ -919,7 +944,6 @@ class MongodbDriver(AbstractDriver):
         ## FOR
 
         result = self.stock.find({"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}, "$comment": comment}).count()
-        logging.debug("Normalized result of stock count is " + str(result))
 
         return int(result)
     ## DEF
