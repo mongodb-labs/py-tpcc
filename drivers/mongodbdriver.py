@@ -431,7 +431,7 @@ class MongodbDriver(AbstractDriver):
             comment = "DELIVERY " + str(d_id)
             ## getNewOrder
             if self.findAndModify:
-                no = self.new_order.find_one_and_update({"NO_D_ID": d_id, "NO_W_ID": w_id, "$comment": comment}, {"$set":{"inProg":True}}, projection={"_id":0, "NO_D_ID":1, "NO_W_ID":1, "NO_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
+                no = self.new_order.find_one_and_delete({"NO_D_ID": d_id, "NO_W_ID": w_id, "$comment": comment}, projection={"_id":0, "NO_D_ID":1, "NO_W_ID":1, "NO_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
                 if no == None:
                     ## No orders for this district: skip it. Note: This must be reported if > 1%
                     return None # continue
@@ -493,8 +493,8 @@ class MongodbDriver(AbstractDriver):
             self.customer.update_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id, "$comment": comment}, {"$inc": {"C_BALANCE": ol_total}}, session=s)
 
             ## deleteNewOrder
-            no["$comment"] = comment
-            self.new_order.delete_one(no, session=s)
+            # no["$comment"] = comment
+            if not self.findAndModify: self.new_order.delete_one(no, session=s)
 
             # These must be logged in the "result file" according to TPC-C 2.7.2.2 (page 39)
             # We remove the queued time, completed time, w_id, and o_carrier_id: the client can figure
