@@ -193,10 +193,10 @@ class MongodbDriver(AbstractDriver):
     DEFAULT_CONFIG = {
         "uri":              ("The mongodb connection string or URI", "mongodb://localhost:27017" ),
         "name":             ("Database name", "tpcc"),
-        "denormalize":      ("If true, data will be denormalized using MongoDB schema design best practices", False),
+        "denormalize":      ("If true, data will be denormalized using MongoDB schema design best practices", True),
         "notransactions":   ("If true, transactions will not be used (benchmarking only)", False),
-        "findandmodify":    ("If true, new order will be fetched via findAndModify", False),
-        "secondary_reads":  ("If true, we will perform causal reads against nearest if possible", False)
+        "findandmodify":    ("If true, all things to update will be fetched via findAndModify", True),
+        "secondary_reads":  ("If true, we will perform causal reads against nearest if possible", True)
     }
     DENORMALIZED_TABLES = [
         constants.TABLENAME_ORDERS,
@@ -206,17 +206,18 @@ class MongodbDriver(AbstractDriver):
 
     def __init__(self, ddl):
         super(MongodbDriver, self).__init__("mongodb", ddl)
-        self.batchWrites = True
-        self.agg = False
-        self.allDeliveriesInOneTransaction = False
         self.noTransactions = False
-        self.findAndModify = False
+        self.findAndModify = True
         self.database = None
         self.client = None
         self.executed=False
         self.session_opts = { }
         self.client_opts = { }
         self.w_orders = { }
+        # things that are not better can't be set in config
+        self.batchWrites = True
+        self.agg = False
+        self.allDeliveriesInOneTransaction = False
 
         ## Create member mapping to collections
         for name in constants.ALL_TABLES:
@@ -296,8 +297,6 @@ class MongodbDriver(AbstractDriver):
                 host = host+':'+config['port']
             real_uri = "mongodb://" + userpassword + host
 
-        # real_uri = "mongodb://" + urllib.quote_plus(config['user']) + ':' + urllib.quote_plus(config['passwd']) + config['uri'][10:]
-        # print real_uri
         try:
             self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"])
         except Exception, err:
