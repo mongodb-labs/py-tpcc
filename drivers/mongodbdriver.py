@@ -799,14 +799,14 @@ class MongodbDriver(AbstractDriver):
         comment = "PAYMENT"
 
         if self.findAndModify:
-            w = self.warehouse.find_one_and_update({"W_ID": w_id, "$comment": comment}, {"$inc":{"H_AMOUNT":h_amount}}, projection={"W_NAME":1,"W_STREET_1":1,"W_STREET_2":1,"W_CITY":1,"W_STATE":1,"W_ZIP":1}, session=s)
+            w = self.warehouse.find_one_and_update({"W_ID": w_id, "$comment": comment}, {"$inc":{"W_YTD":h_amount}}, projection={"W_NAME":1,"W_STREET_1":1,"W_STREET_2":1,"W_CITY":1,"W_STATE":1,"W_ZIP":1}, session=s)
             assert w, "Couldn't find warehouse in payment"
         else:
             # getWarehouse
             w = self.warehouse.find_one({"W_ID": w_id, "$comment": comment}, {"W_NAME": 1, "W_STREET_1": 1, "W_STREET_2": 1, "W_CITY": 1, "W_STATE": 1, "W_ZIP": 1}, session=s)
             assert w, "Couldn't find warehouse in payment"
             # updateWarehouseBalance
-            self.warehouse.update_one({"_id": w["_id"], "$comment": comment}, {"$inc": {"H_AMOUNT": h_amount}}, session=s)
+            self.warehouse.update_one({"_id": w["_id"], "$comment": comment}, {"$inc": {"W_YTD": h_amount}}, session=s)
         ## IF
 
         # getDistrict
