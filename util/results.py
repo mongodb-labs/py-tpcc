@@ -38,6 +38,7 @@ class Results:
         self.txn_times = { }
         self.txn_mins = { }
         self.txn_maxs = { }
+        self.new_order_latencies = [ ]
         self.txn_retries = { }
         self.running = { }
 
@@ -78,6 +79,7 @@ class Results:
         duration = time.time() - txn_start
         total_time = self.txn_times.get(txn_name, 0)
         self.txn_times[txn_name] = total_time + duration
+        if txn_name == 'NEW_ORDER': self.new_order_latencies.append(duration)
 
         total_retries = self.txn_retries.get(txn_name, 0)
         self.txn_retries[txn_name] = total_retries + retries
@@ -106,7 +108,10 @@ class Results:
             self.txn_maxs[txn_name] = orig_max if orig_max > r.txn_maxs[txn_name] else r.txn_maxs[txn_name]
             self.txn_times[txn_name] = orig_time + r.txn_times[txn_name]
             self.txn_retries[txn_name] = orig_retries + r.txn_retries[txn_name]
-            #logging.debug("%s [cnt=%d, time=%d]" % (txn_name, self.txn_counters[txn_name], self.txn_times[txn_name]))
+            # logging.debug("%s [cnt=%d, time=%d]" % (txn_name, self.txn_counters[txn_name], self.txn_times[txn_name]))
+            if txn_name == 'NEW_ORDER':
+                self.new_order_latencies.extend(r.new_order_latencies)
+
         ## HACK
         self.start = r.start
         self.stop = r.stop
@@ -163,26 +168,36 @@ class Results:
             avg_latency = u"%5.02f" % (1000* (txn_time / txn_cnt))
             percCnt = u"%5.02f" % ( (100.0*txn_cnt / total_cnt) )
             percTime = u"%5.02f" % ( (100.0*txn_time / total_time) )
-            ret += f % (txn, str(txn_cnt), str(dbtxn_count), str(txn_time), rate, percCnt, percTime, 
+            ret += f % (txn, str(txn_cnt), str(dbtxn_count), str(txn_time), rate, percCnt, percTime,
                 str(txn_retries)+"/"+str(100.00*txn_retries/dbtxn_count)[:5]+"%",
                 min_latency, avg_latency, max_latency)
 
         if 'NEW_ORDER' not in self.txn_counters: self.txn_counters['NEW_ORDER'] = 0
         ret += "\n" + ("-"*total_width)
         total_rate = "%.02f txn/s" % ((total_cnt / total_time))
+        samples = len(self.new_order_latencies)
+        ip50 = int(samples/2)
+        ip75 = int(samples/100*75)
+        ip90 = int(samples/100*90)
+        ip95 = int(samples/100*95)
+        ip99 = int(samples/100*99)
+        lat = sorted(self.new_order_latencies)
         ret += f % ("TOTAL", str(total_cnt), str(total_dbtxn), str(total_time), total_rate, "", "", "", "", "", "")
         if driver != None:
             # print(driver)
-            ret += "\n%s TpmC for %s, %s threads, %s txn %d warehouses:  %d  (%d total orders %d sec duration, batch writes %s %d retries %s%% %s findAndModify %s) " % (
+            ret += "\n%s TpmC for %s, %s threads, %s txn %d warehouses:  %d  (%d total %d durSec, batch %s %d retries %s%% %s findAndModify %s p50 %s p75 %s p90 %s p95 %s p99 %s max %s) " % (
                 time.strftime("%Y-%m-%d %H:%M:%S"),
                 ("normal", "denorm")[driver.denormalize],
                 threads,
                 ("with", "w/o ")[driver.noTransactions],
                 warehouses,
-                round(self.txn_counters['NEW_ORDER']*60/duration), self.txn_counters['NEW_ORDER'], duration, 
+                round(self.txn_counters['NEW_ORDER']*60/duration), self.txn_counters['NEW_ORDER'], duration,
                 ("off", "on")[driver.batchWrites], total_retries, str(100.0*total_retries/total_dbtxn)[:5],
                 ("w/o ", "with")[driver.findAndModify],
-                driver.client_opts["read_preference"])
+                driver.client_opts["read_preference"],
+                u"%6.2f" % (1000.0*lat[ip50]), u"%6.2f" % (1000.0*lat[ip75]),
+                u"%6.2f" % (1000.0*lat[ip90]), u"%6.2f" % (1000.0*lat[ip95]), u"%6.2f" % (1000.0*lat[ip99]),
+                u"%6.2f" % (1000.0*lat[-1]))
 
         return (ret.encode('ascii', "ignore"))
 ## CLASS
