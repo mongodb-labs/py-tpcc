@@ -85,7 +85,7 @@ class Executor:
             batch_result.stopTransaction(batch_txn_id, retries)
             global_result.stopTransaction(global_txn_id, retries)
 
-            if time.time() - start_batch > 600: # every 10 minutes
+            if time.time() - start_batch > 900: # every 15 minutes
                 batch_result.stopBenchmark()
                 logging.info(batch_result.show())
                 batch_result = results.Results()
