@@ -298,7 +298,7 @@ class MongodbDriver(AbstractDriver):
             real_uri = "mongodb://" + userpassword + host
 
         try:
-            self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"])
+            self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"], maxStalenessSeconds=90) 
         except Exception, err:
             print "Was trying to connect to " + uri
             print "Got error " + str(err)
@@ -972,7 +972,7 @@ class MongodbDriver(AbstractDriver):
     # Should we retry txns within the same session or start a new one?
     def run_transaction_with_retries(self, client, txn_callback, name, params):
         txn_retry_counter = 0
-        to = pymongo.client_session.TransactionOptions(read_concern=None, write_concern=None, read_preference=pymongo.read_preferences.Primary())
+        to = pymongo.client_session.TransactionOptions(read_concern=None, write_concern=pymongo.WriteConcern(w='majority'), read_preference=pymongo.read_preferences.Primary())
         with client.start_session(default_transaction_options=to, causal_consistency=self.session_opts["causal_consistency"]) as s:
             while True:
                 (ok, value) = self.run_transaction(client, txn_callback, s, name, params)
