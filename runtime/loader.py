@@ -47,7 +47,7 @@ class Loader:
         self.scaleParameters = scaleParameters
         self.w_ids = w_ids
         self.needLoadItems = needLoadItems
-        self.batch_size = 2500
+        self.batch_size = 500
         
     ## ==============================================
     ## execute
