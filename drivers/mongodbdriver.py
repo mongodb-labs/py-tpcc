@@ -245,13 +245,11 @@ class MongodbDriver(AbstractDriver):
                logging.debug("'%s' not in %s conf, set to %s" % (key, self.name, str(MongodbDriver.DEFAULT_CONFIG[key][1])))
                config[key] = MongodbDriver.DEFAULT_CONFIG[key][1]
 
-        self.secondary_reads = config['secondary_reads'] == 'True'
-        self.session_opts["causal_consistency"] = False
+        self.session_opts["causal_consistency"] = True
 
+        self.secondary_reads = config['secondary_reads'] == 'True'
         if self.secondary_reads:
             self.client_opts["read_preference"] = "secondaryPreferred"
-            # Let's explicitly enable causal if secondary reads are allowed
-            # self.session_opts["causal_consistency"] = True
         else:
             self.client_opts["read_preference"] = "primary"
         ## IF
@@ -259,6 +257,10 @@ class MongodbDriver(AbstractDriver):
         self.denormalize = config['denormalize'] == 'True'
         self.noTransactions = config['notransactions'] == 'True'
         self.findAndModify = config['findandmodify'] == 'True'
+        self.writeConcern = pymongo.write_concern.WriteConcern(w=1)
+        if 'write_concern' in config and config['write_concern'] and config['write_concern'] != '1':
+             # only expecting string 'majority' as an alternative to w:1
+             self.writeConcern = pymongo.write_concern.WriteConcern(w=str(config['write_concern']))
 
         # handle building connection string
         # print config
@@ -298,13 +300,17 @@ class MongodbDriver(AbstractDriver):
             real_uri = "mongodb://" + userpassword + host
 
         try:
-            self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"], maxStalenessSeconds=90) 
+            if self.secondary_reads:
+                 self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"], maxStalenessSeconds=90) 
+            else:
+                 self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"]) 
         except Exception, err:
             print "Was trying to connect to " + uri
             print "Got error " + str(err)
             return
 
-        self.database = self.client[str(config['name'])]
+        # set default writeConcern on the database
+        self.database = self.client.get_database(name=str(config['name']), write_concern=self.writeConcern)
         if self.denormalize: logging.debug("Using denormalized data model")
 
         if config["reset"]:
@@ -325,7 +331,10 @@ class MongodbDriver(AbstractDriver):
             if load_indexes and name in TABLE_INDEXES:
                 uniq = True
                 for index in TABLE_INDEXES[name]:
-                    self.database[name].create_index(index, unique=uniq)
+                    try:
+                        self.database[name].create_index(index, unique=uniq)
+                    except Exception, err:
+                        print str(err)
                     uniq = False
             ## IF
         ## FOR
@@ -395,7 +404,7 @@ class MongodbDriver(AbstractDriver):
     ## doDelivery
     ## ----------------------------------------------
     def doDelivery(self, params):
-        # two options, option one is to run a db transaction for each of 10 orders
+        # two options, option one (default) is to run a db transaction for each of 10 orders
 
         if self.allDeliveriesInOneTransaction:
             (value, retries) =  self.run_transaction_with_retries(self.client, self._doDelivery10Txn, "DELIVERY", params)
@@ -558,7 +567,7 @@ class MongodbDriver(AbstractDriver):
         ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
         ## Note that this will happen with 1% of transactions on purpose.
         if len(items) != len(i_ids):
-            if s: s.abort_transaction()
+            if not self.noTransactions: s.abort_transaction()
             logging.debug("1% Abort transaction (not all passed I_IDs are in ITEMS) - expected")
             return
         ## IF
@@ -921,22 +930,20 @@ class MongodbDriver(AbstractDriver):
         o_id = d["D_NEXT_O_ID"]
 
         # getStockCount
-        # Outer Table: ORDER_LINE
-        # Inner Table: STOCK
         if self.denormalize:
-            os = self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_ID": {"$lt": o_id, "$gte": o_id-20}, "$comment": comment}, {"ORDER_LINE.OL_I_ID": 1}, session=s)
-            assert os, "Didn't find matching orders in stock level"
+            os = list(self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_ID": {"$lt": o_id, "$gte": o_id-20}, "$comment": comment}, {"ORDER_LINE.OL_I_ID": 1}, session=s))
+            assert os, "Didn't find matching orders in stock level %d %d %d" % (w_id, d_id, o_id)
 
             orderLines = [ ]
             for o in os:
-                assert "ORDER_LINE" in o, "ORDER_LINE field not in order"
+                assert "ORDER_LINE" in o, "ORDER_LINE field not in order %d %d %d" % (w_id, d_id, o_id)
                 orderLines.extend(o["ORDER_LINE"])
             ## FOR
         else:
-            orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": {"$lt": o_id, "$gte": o_id-20}, "$comment": comment}, {"_id":0, "OL_I_ID": 1},  batch_size=1000,session=s)
+            orderLines = list(self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": {"$lt": o_id, "$gte": o_id-20}, "$comment": comment}, {"_id":0, "OL_I_ID": 1},  batch_size=1000,session=s))
         ## IF
 
-        assert orderLines, "orderLines should not be empty/null"
+        assert orderLines, "orderLines should not be empty/null %d %d %d" % (w_id, d_id, o_id)
         ol_ids = set()
         for ol in orderLines:
             ol_ids.add(ol["OL_I_ID"])
@@ -949,7 +956,7 @@ class MongodbDriver(AbstractDriver):
 
 
     def run_transaction(self, client, txn_callback, session, name, params):
-        if self.noTransactions: return (True, txn_callback(None, params))
+        if self.noTransactions: return (True, txn_callback(session, params))
         try:
             # this implicitly commits on success
             with session.start_transaction():
@@ -972,7 +979,7 @@ class MongodbDriver(AbstractDriver):
     # Should we retry txns within the same session or start a new one?
     def run_transaction_with_retries(self, client, txn_callback, name, params):
         txn_retry_counter = 0
-        to = pymongo.client_session.TransactionOptions(read_concern=None, write_concern=pymongo.WriteConcern(w='majority'), read_preference=pymongo.read_preferences.Primary())
+        to = pymongo.client_session.TransactionOptions(read_concern=None, write_concern=self.writeConcern, read_preference=pymongo.read_preferences.Primary())
         with client.start_session(default_transaction_options=to, causal_consistency=self.session_opts["causal_consistency"]) as s:
             while True:
                 (ok, value) = self.run_transaction(client, txn_callback, s, name, params)
