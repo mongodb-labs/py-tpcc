@@ -185,7 +185,7 @@ class Results:
         ret += f % ("TOTAL", str(total_cnt), str(total_dbtxn), str(total_time), total_rate, "", "", "", "", "", "")
         if driver != None:
             # print(driver)
-            ret += "\n%s TpmC for %s %s thr %s txn %d WH: %d %d total %d durSec, batch %s %d retries %s%% %s fnM %s p50 %s p75 %s p90 %s p95 %s p99 %s max %s WC %s causal %s " % (
+            ret += "\n%s TpmC for %s %s thr %s txn %d WH: %d %d total %d durSec, batch %s %d retries %s%% %s fnM %s p50 %s p75 %s p90 %s p95 %s p99 %s max %s WC %s causal %s 10in1 %s" % (
                 time.strftime("%Y-%m-%d %H:%M:%S"),
                 ("normal", "denorm")[driver.denormalize],
                 threads,
@@ -198,7 +198,8 @@ class Results:
                 u"%6.2f" % (1000.0*lat[ip50]), u"%6.2f" % (1000.0*lat[ip75]),
                 u"%6.2f" % (1000.0*lat[ip90]), u"%6.2f" % (1000.0*lat[ip95]), u"%6.2f" % (1000.0*lat[ip99]),
                 u"%6.2f" % (1000.0*lat[-1]),
-                str(driver.writeConcern), ('false','true')[driver.session_opts["causal_consistency"]])
+                str(driver.writeConcern), ('false','true')[driver.session_opts["causal_consistency"]],
+                ('false','true')[driver.allDeliveriesInOneTransaction])
 
         return (ret.encode('ascii', "ignore"))
 ## CLASS
