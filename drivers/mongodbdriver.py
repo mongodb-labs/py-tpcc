@@ -217,7 +217,7 @@ class MongodbDriver(AbstractDriver):
         # things that are not better can't be set in config
         self.batchWrites = True
         self.agg = False
-        self.allDeliveriesInOneTransaction = False
+        self.allDeliveriesInOneTransaction = True
 
         ## Create member mapping to collections
         for name in constants.ALL_TABLES:
@@ -260,7 +260,7 @@ class MongodbDriver(AbstractDriver):
         self.writeConcern = pymongo.write_concern.WriteConcern(w=1)
         if 'write_concern' in config and config['write_concern'] and config['write_concern'] != '1':
              # only expecting string 'majority' as an alternative to w:1
-             self.writeConcern = pymongo.write_concern.WriteConcern(w=str(config['write_concern']))
+             self.writeConcern = pymongo.write_concern.WriteConcern(w=str(config['write_concern']), wtimeout=30000)
 
         # handle building connection string
         # print config
@@ -524,7 +524,6 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     def doNewOrder(self, params):
         (value, retries) = self.run_transaction_with_retries(self.client, self._doNewOrderTxn, "NEW_ORDER", params)
-        #if retries > 0: print "NEW_ORDER had " + str(retries) + " retries"
         return (value, retries)
     ## DEF
 
@@ -551,10 +550,10 @@ class MongodbDriver(AbstractDriver):
         # getDistrict
         if self.findAndModify:
             d = self.district.find_one_and_update({"D_ID": d_id, "D_W_ID": w_id, "$comment": comment}, {"$inc":{"D_NEXT_O_ID":1}}, projection={"_id":0, "D_ID":1, "D_W_ID":1, "D_TAX": 1, "D_NEXT_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
-            assert d, "Couldn't find distict in new order"
+            assert d, "Couldn't find district in new order w_id %d d_id %d" % (w_id, d_id)
         else:
             d = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id, "$comment": comment}, {"_id":0, "D_ID":1, "D_W_ID":1, "D_TAX": 1, "D_NEXT_O_ID": 1}, session=s)
-            assert d, "Couldn't find distict in new order"
+            assert d, "Couldn't find district in new order w_id %d d_id %d" % (w_id, d_id)
             # incrementNextOrderId
             d["$comment"] = comment
             self.district.update_one(d, {"$inc": {"D_NEXT_O_ID": 1}}, session=s)
@@ -575,7 +574,7 @@ class MongodbDriver(AbstractDriver):
 
         # getWarehouseTaxRate
         w = self.warehouse.find_one({"W_ID": w_id, "$comment": comment}, {"_id":0, "W_TAX": 1}, session=s)
-        assert w, "Couldn't find warehouse in new order"
+        assert w, "Couldn't find warehouse in new order w_id %d" % (w_id)
         w_tax = w["W_TAX"]
 
         # getCustomer
@@ -616,7 +615,7 @@ class MongodbDriver(AbstractDriver):
             search_list = [dict(zip(field_list, ze)) for ze in item_w_list]
             allStocks = list(self.stock.find({"$or": search_list, "$comment": comment}, {"_id":0, "S_I_ID": 1, "S_W_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}, session=s))
         ## IF
-        assert len(allStocks) == ol_cnt, "allStocks length != ol_cnt"
+        assert len(allStocks) == ol_cnt, "allStocks length != ol_cnt allStocks length %d and ol_cnt is %d" % (len(allStocks), ol_cnt)
         allStocks = sorted(allStocks, key=lambda x: item_w_list.index((x['S_I_ID'], x["S_W_ID"])))
 
         ## ----------------
@@ -809,11 +808,11 @@ class MongodbDriver(AbstractDriver):
 
         if self.findAndModify:
             w = self.warehouse.find_one_and_update({"W_ID": w_id, "$comment": comment}, {"$inc":{"W_YTD":h_amount}}, projection={"W_NAME":1,"W_STREET_1":1,"W_STREET_2":1,"W_CITY":1,"W_STATE":1,"W_ZIP":1}, session=s)
-            assert w, "Couldn't find warehouse in payment"
+            assert w, "Couldn't find warehouse in payment w_id %d" % (w_id)
         else:
             # getWarehouse
             w = self.warehouse.find_one({"W_ID": w_id, "$comment": comment}, {"W_NAME": 1, "W_STREET_1": 1, "W_STREET_2": 1, "W_CITY": 1, "W_STATE": 1, "W_ZIP": 1}, session=s)
-            assert w, "Couldn't find warehouse in payment"
+            assert w, "Couldn't find warehouse in payment w_id %d" % (w_id)
             # updateWarehouseBalance
             self.warehouse.update_one({"_id": w["_id"], "$comment": comment}, {"$inc": {"W_YTD": h_amount}}, session=s)
         ## IF
@@ -821,10 +820,10 @@ class MongodbDriver(AbstractDriver):
         # getDistrict
         if self.findAndModify:
             d = self.district.find_one_and_update({"D_ID": d_id, "D_W_ID": w_id, "$comment": comment}, {"$inc":{"D_YTD":h_amount}}, projection={"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1},session=s)
-            assert d, "Couldn't find district in payment"
+            assert d, "Couldn't find district in payment w_id %d d_id %d" % (w_id, d_id)
         else:
             d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id, "$comment": comment}, {"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1}, session=s)
-            assert d, "Couldn't find distinct in payment"
+            assert d, "Couldn't find district in payment w_id %d d_id %d" % (w_id, d_id)
             # updateDistrictBalance
             self.district.update_one({"_id": d["_id"], "$comment": comment},  {"$inc": {"D_YTD": h_amount}}, session=s)
         ## IF
@@ -836,14 +835,14 @@ class MongodbDriver(AbstractDriver):
             # getCustomerByCustomerId
             search_fields["C_ID"] = c_id
             c = self.customer.find_one(search_fields, return_fields, session=s)
-            assert c, "Couldn't find customer in payment"
+            assert c, "Couldn't find customer in payment w_id %d d_id %d c_id %d" % (w_id, d_id, c_id)
         else:
             # getCustomersByLastName
             # Get the midpoint customer's id
             search_fields['C_LAST'] = c_last
             all_customers = list(self.customer.find(search_fields, return_fields, session=s)) # .sort([("NO_O_ID", 1)]) sort by C_FIRST is missing(!)
             namecnt = len(all_customers)
-            assert namecnt > 0, "Didn't find any matching customers"
+            assert namecnt > 0, "Didn't find any matching customers w_id %d d_id %d c_last %s" % (w_id, d_id, c_last)
             index = (namecnt-1)/2
             c = all_customers[index]
             c_id = c["C_ID"]
@@ -926,13 +925,20 @@ class MongodbDriver(AbstractDriver):
 
         d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id, "$comment": comment}, {"_id":0, "D_NEXT_O_ID": 1}, session=s)
 
-        assert d, "Didn't find matching district in stock level"
+        assert d, "Didn't find matching district in stock level w_id %d d_id %d" % (w_id, d_id)
         o_id = d["D_NEXT_O_ID"]
 
         # getStockCount
         if self.denormalize:
             os = list(self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_ID": {"$lt": o_id, "$gte": o_id-20}, "$comment": comment}, {"ORDER_LINE.OL_I_ID": 1}, session=s))
-            assert os, "Didn't find matching orders in stock level %d %d %d" % (w_id, d_id, o_id)
+            if len(os) == 0: 
+                logging.warning("Didn't find matching orders in stock level w_id %d d_id %d o_id %d" % (w_id, d_id, o_id))
+                # sleep one second and try again - TODO make it read from primary if it doesn't find anything here
+                # if self read preference is secondary then try it from primary
+                sleep(1)
+                os = list(self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_ID": {"$lt": o_id, "$gte": o_id-20}, "$comment": comment}, {"ORDER_LINE.OL_I_ID": 1}, session=s))
+                logging.warning("still didn't find matching orders in stock level %d %d %d" % (w_id, d_id, o_id))
+                assert os
 
             orderLines = [ ]
             for o in os:
