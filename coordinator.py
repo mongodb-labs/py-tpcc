@@ -73,7 +73,7 @@ def getDrivers():
 ## ==============================================
 ## startLoading
 ## ==============================================
-def startLoading(scalParameters,args,config,channels):  
+def startLoading(scalParameters,args,config,channels):
     #Split the warehouses into chunks
     procs = len(channels)
     w_ids = map(lambda x:[], range(procs))

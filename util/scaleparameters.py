@@ -53,7 +53,7 @@ def makeWithScaleFactor(warehouses, scaleFactor):
 ## DEF
 
 class ScaleParameters:
-    
+
     def __init__(self, items, warehouses, districtsPerWarehouse, customersPerDistrict, newOrdersPerDistrict):
         assert 1 <= items and items <= constants.NUM_ITEMS
         self.items = items

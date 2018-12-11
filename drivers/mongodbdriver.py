@@ -301,9 +301,9 @@ class MongodbDriver(AbstractDriver):
 
         try:
             if self.secondary_reads:
-                 self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"], maxStalenessSeconds=90) 
+                 self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"], maxStalenessSeconds=90)
             else:
-                 self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"]) 
+                 self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"])
         except Exception, err:
             print "Was trying to connect to " + uri
             print "Got error " + str(err)
@@ -481,7 +481,7 @@ class MongodbDriver(AbstractDriver):
                     sys.exit(1)
                 ## IF
 
-                ## updateOrders 
+                ## updateOrders
                 if not self.findAndModify: self.orders.update_one({"_id": o['_id'], "$comment": comment}, {"$set": {"O_CARRIER_ID": o_carrier_id, "ORDER_LINE.$[].OL_DELIVERY_D": ol_delivery_d}}, session=s)
             else:
                 ## sumOLAmount
@@ -710,7 +710,7 @@ class MongodbDriver(AbstractDriver):
             if not self.denormalize: self.order_line.insert_many(orderLineWrites, session=s)
             self.stock.bulk_write(stockWrites, session=s)
         ## IF
-        
+
         # createOrder
         self.orders.insert_one(o, session=s)
 
@@ -903,14 +903,14 @@ class MongodbDriver(AbstractDriver):
 
         if self.agg and self.denormalize:
             result = list(self.district.aggregate([
-                   {"$match":{"D_W_ID":w_id, "D_ID":d_id}}, 
+                   {"$match":{"D_W_ID":w_id, "D_ID":d_id}},
                    {"$limit":1},
                    {"$project":{"_id":0, "O_ID":{ "$range" : [ { "$subtract" : [ "$D_NEXT_O_ID", 20 ] }, "$D_NEXT_O_ID" ] }}},
                    {"$unwind" : "$O_ID"},
                    {"$lookup":{"from":"ORDERS", "as":"o", "let":{"oid":"$O_ID"}, "pipeline":[
                          {"$match":{"O_D_ID":d_id, "O_W_ID":w_id, "$expr":{"$eq":["$O_ID","$$oid"]}}},
                          {"$project":{"_id":0, "I_IDS":"$ORDER_LINE.OL_I_ID"}}
-                   ]}}, 
+                   ]}},
                    {"$unwind" : "$o"},
                    {"$unwind" : "$o.I_IDS"},
                    {"$lookup":{"from":"STOCK", "as":"o", "let":{"ids":"$o.I_IDS"}, "pipeline":[
@@ -931,7 +931,7 @@ class MongodbDriver(AbstractDriver):
         # getStockCount
         if self.denormalize:
             os = list(self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_ID": {"$lt": o_id, "$gte": o_id-20}, "$comment": comment}, {"ORDER_LINE.OL_I_ID": 1}, session=s))
-            if len(os) == 0: 
+            if len(os) == 0:
                 logging.warning("Didn't find matching orders in stock level w_id %d d_id %d o_id %d" % (w_id, d_id, o_id))
                 # sleep one second and try again - TODO make it read from primary if it doesn't find anything here
                 # if self read preference is secondary then try it from primary

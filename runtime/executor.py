@@ -43,13 +43,13 @@ from util import *
 
 
 class Executor:
-    
+
     def __init__(self, driver, scaleParameters, stop_on_error = False):
         self.driver = driver
         self.scaleParameters = scaleParameters
         self.stop_on_error = stop_on_error
     ## DEF
-    
+
     def execute(self, duration):
         global_result = results.Results()
         assert global_result, "Failed to return a Results object"
@@ -96,10 +96,10 @@ class Executor:
         global_result.stopBenchmark()
         return (global_result)
     ## DEF
-    
+
     def doOne(self):
         """Selects and executes a transaction at random. The number of new order transactions executed per minute is the official "tpmC" metric. See TPC-C 5.4.2 (page 71)."""
-        
+
         ## This is not strictly accurate: The requirement is for certain
         ## *minimum* percentages to be maintained. This is close to the right
         ## thing, but not precisely correct. See TPC-C 5.2.4 (page 68).
@@ -117,7 +117,7 @@ class Executor:
         else: ## 45%
             assert x > 100 - 45, "Random number wasn't within specified range or percentages don't add up (%d)" % x
             txn, params = (constants.TransactionTypes.NEW_ORDER, self.generateNewOrderParams())
-        
+
         return (txn, params)
     ## DEF
 
@@ -180,7 +180,7 @@ class Executor:
         d_id = self.makeDistrictId()
         c_last = None
         c_id = None
-        
+
         ## 60%: order status by last name
         if rand.number(1, 100) <= 60:
             c_last = rand.makeRandomLastName(self.scaleParameters.customersPerDistrict)
@@ -188,7 +188,7 @@ class Executor:
         ## 40%: order status by id
         else:
             c_id = self.makeCustomerId()
-            
+
         return makeParameterDict(locals(), "w_id", "d_id", "c_id", "c_last")
     ## DEF
 

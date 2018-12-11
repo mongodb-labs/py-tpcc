@@ -41,31 +41,31 @@ import constants
 from util import *
 
 class Loader:
-    
+
     def __init__(self, handle, scaleParameters, w_ids, needLoadItems):
         self.handle = handle
         self.scaleParameters = scaleParameters
         self.w_ids = w_ids
         self.needLoadItems = needLoadItems
         self.batch_size = 500
-        
+
     ## ==============================================
     ## execute
     ## ==============================================
     def execute(self):
-        
+
         ## Item Table
         if self.needLoadItems:
             logging.debug("Loading ITEM table")
             self.loadItems()
             self.handle.loadFinishItem()
-            
+
         ## Then create the warehouse-specific tuples
         for w_id in self.w_ids:
             self.loadWarehouse(w_id)
             self.handle.loadFinishWarehouse(w_id)
         ## FOR
-        
+
         return (None)
 
     ## ==============================================
@@ -74,7 +74,7 @@ class Loader:
     def loadItems(self):
         ## Select 10% of the rows to be marked "original"
         originalRows = rand.selectUniqueIds(self.scaleParameters.items / 10, 1, self.scaleParameters.items)
-        
+
         ## Load all of the items
         tuples = [ ]
         total_tuples = 0
@@ -97,7 +97,7 @@ class Loader:
     ## ==============================================
     def loadWarehouse(self, w_id):
         logging.debug("LOAD - %s: %d / %d" % (constants.TABLENAME_WAREHOUSE, w_id, len(self.w_ids)))
-        
+
         ## WAREHOUSE
         w_tuples = [ self.generateWarehouse(w_id) ]
         self.handle.loadTuples(constants.TABLENAME_WAREHOUSE, w_tuples)
@@ -107,13 +107,13 @@ class Loader:
         for d_id in range(1, self.scaleParameters.districtsPerWarehouse+1):
             d_next_o_id = self.scaleParameters.customersPerDistrict + 1
             d_tuples = [ self.generateDistrict(w_id, d_id, d_next_o_id) ]
-            
+
             c_tuples = [ ]
             h_tuples = [ ]
-            
+
             ## Select 10% of the customers to have bad credit
             selectedRows = rand.selectUniqueIds(self.scaleParameters.customersPerDistrict / 10, 1, self.scaleParameters.customersPerDistrict)
-            
+
             ## TPC-C 4.3.3.1. says that o_c_id should be a permutation of [1, 3000]. But since it
             ## is a c_id field, it seems to make sense to have it be a permutation of the
             ## customers. For the "real" thing this will be equivalent
@@ -128,14 +128,14 @@ class Loader:
             assert cIdPermutation[0] == 1
             assert cIdPermutation[self.scaleParameters.customersPerDistrict - 1] == self.scaleParameters.customersPerDistrict
             shuffle(cIdPermutation)
-            
+
             o_tuples = [ ]
             ol_tuples = [ ]
             no_tuples = [ ]
-            
+
             for o_id in range(1, self.scaleParameters.customersPerDistrict+1):
                 o_ol_cnt = rand.number(constants.MIN_OL_CNT, constants.MAX_OL_CNT)
-                
+
                 ## The last newOrdersPerDistrict are new orders
                 newOrder = ((self.scaleParameters.customersPerDistrict - self.scaleParameters.newOrdersPerDistrict) < o_id)
                 o_tuples.append(self.generateOrder(w_id, d_id, o_id, cIdPermutation[o_id - 1], o_ol_cnt, newOrder))
@@ -148,7 +148,7 @@ class Loader:
                 ## This is a new order: make one for it
                 if newOrder: no_tuples.append([o_id, d_id, w_id])
             ## FOR
-            
+
             self.handle.loadTuples(constants.TABLENAME_DISTRICT, d_tuples)
             self.handle.loadTuples(constants.TABLENAME_CUSTOMER, c_tuples)
             self.handle.loadTuples(constants.TABLENAME_ORDERS, o_tuples)
@@ -157,7 +157,7 @@ class Loader:
             self.handle.loadTuples(constants.TABLENAME_HISTORY, h_tuples)
             self.handle.loadFinishDistrict(w_id, d_id)
         ## FOR
-        
+
         ## Select 10% of the stock to be marked "original"
         s_tuples = [ ]
         selectedRows = rand.selectUniqueIds(self.scaleParameters.items / 10, 1, self.scaleParameters.items)
@@ -291,7 +291,7 @@ class Loader:
         s_dists = [ ]
         for i in range(0, constants.DISTRICTS_PER_WAREHOUSE):
             s_dists.append(rand.astring(constants.DIST, constants.DIST))
-        
+
         return [ s_i_id, s_w_id, s_quantity ] + \
                s_dists + \
                [ s_ytd, s_order_cnt, s_remote_cnt, s_data ]
@@ -314,7 +314,7 @@ class Loader:
     ## ==============================================
     def generateAddress(self):
         """
-            Returns a name and a street address 
+            Returns a name and a street address
             Used by both generateWarehouse and generateDistrict.
         """
         name = rand.astring(constants.MIN_NAME, constants.MAX_NAME)

@@ -45,8 +45,8 @@ def NURand(a, x, y):
     global nurandVar
     assert x <= y
     if nurandVar is None:
-		setNURand(nurand.makeForLoad())
-    
+        setNURand(nurand.makeForLoad())
+
     if a == 255:
         c = nurandVar.cLast
     elif a == 1023:
@@ -55,7 +55,7 @@ def NURand(a, x, y):
         c = nurandVar.orderLineItemId
     else:
         raise Exception("a = " + a + " is not a supported value")
-    
+
     return (((number(0, a) | number(x, y)) + c) % (y - x + 1)) + x
 ## DEF
 
@@ -77,7 +77,7 @@ def numberExcluding(minimum, maximum, excluding):
     if num >= excluding: num += 1
     assert minimum <= num and num <= maximum and num != excluding
     return num
-## DEF 
+## DEF
 
 def fixedPoint(decimal_places, minimum, maximum):
     assert decimal_places > 0
