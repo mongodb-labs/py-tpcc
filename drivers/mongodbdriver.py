@@ -222,16 +222,12 @@ class MongodbDriver(AbstractDriver):
         ## Create member mapping to collections
         for name in constants.ALL_TABLES:
             self.__dict__[name.lower()] = None
-    ## DEF
-
 
     ## ----------------------------------------------
     ## makeDefaultConfig
     ## ----------------------------------------------
     def makeDefaultConfig(self):
         return MongodbDriver.DEFAULT_CONFIG
-    ## DEF
-
 
     ## ----------------------------------------------
     ## loadConfig
@@ -339,8 +335,6 @@ class MongodbDriver(AbstractDriver):
                     uniq = False
             ## IF
         ## FOR
-    ## DEF
-
 
     ## ----------------------------------------------
     ## loadTuples
@@ -389,8 +383,6 @@ class MongodbDriver(AbstractDriver):
         ## IF
 
         return
-    ## DEF
-
 
     def loadFinishDistrict(self, w_id, d_id):
         if self.denormalize:
@@ -398,8 +390,6 @@ class MongodbDriver(AbstractDriver):
             self.database[constants.TABLENAME_ORDERS].insert(self.w_orders.values())
             self.w_orders.clear()
         ## IF
-    ## DEF
-
 
     ## ----------------------------------------------
     ## doDelivery
@@ -409,7 +399,6 @@ class MongodbDriver(AbstractDriver):
 
         if self.allDeliveriesInOneTransaction:
             (value, retries) =  self.run_transaction_with_retries(self.client, self._doDelivery10Txn, "DELIVERY", params)
-            #if retries > 0: print "DELIVERY had " + str(retries) + " retries"
             return (value, retries)
         result = [ ]
         retries = 0
@@ -418,9 +407,7 @@ class MongodbDriver(AbstractDriver):
             (r, rt) = self.run_transaction_with_retries(self.client, self._doDeliveryTxn, "DELIVERY", params)
             retries += rt
             result.append(r)
-        #if retries > 0: print "10 DELIVERIES had " + str(retries) + " retries"
         return (result, retries)
-    ## DEF
 
     def _doDelivery10Txn(self, s, params):
         result = [ ]
@@ -430,27 +417,25 @@ class MongodbDriver(AbstractDriver):
             if r:
                 result.append(r)
         return result
-    ## DEF
 
     def _doDeliveryTxn(self, s, params):
             w_id = params["w_id"]
             o_carrier_id = params["o_carrier_id"]
             ol_delivery_d = params["ol_delivery_d"]
             d_id = params["d_id"]
-        # for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):    # there will be as many orders as districts per warehouse (10)
             comment = "DELIVERY " + str(d_id)
             ## getNewOrder
             if self.findAndModify:
                 no = self.new_order.find_one_and_delete({"NO_D_ID": d_id, "NO_W_ID": w_id, "$comment": comment}, projection={"_id":0, "NO_D_ID":1, "NO_W_ID":1, "NO_O_ID": 1}, sort=[("NO_O_ID", 1)],session=s)
                 if no == None:
                     ## No orders for this district: skip it. Note: This must be reported if > 1%
-                    return None # continue
+                    return None
             else:
                 no_cursor = self.new_order.find({"NO_D_ID": d_id, "NO_W_ID": w_id, "$comment": comment}, {"_id":0, "NO_D_ID":1, "NO_W_ID":1, "NO_O_ID": 1}, session=s).sort([("NO_O_ID", 1)]).limit(1)
                 no_converted_cursor=list(no_cursor)
                 if len(no_converted_cursor) == 0:
                     ## No orders for this district: skip it. Note: This must be reported if > 1%
-                    return None  # continue
+                    return None
                 ## IF
                 no = no_converted_cursor[0]
            ## IF
@@ -503,7 +488,6 @@ class MongodbDriver(AbstractDriver):
             self.customer.update_one({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id, "$comment": comment}, {"$inc": {"C_BALANCE": ol_total}}, session=s)
 
             ## deleteNewOrder
-            # no["$comment"] = comment
             if not self.findAndModify: self.new_order.delete_one(no, session=s)
 
             # These must be logged in the "result file" according to TPC-C 2.7.2.2 (page 39)
@@ -513,12 +497,8 @@ class MongodbDriver(AbstractDriver):
             assert ol_total != None, "ol_total is NULL: there are no order lines. This should not happen"
             assert ol_total > 0.0, "ol_total is 0"
 
-            return (d_id, o_id)   # result.append((d_id, o_id))
+            return (d_id, o_id)
         ### FOR
-
-        #return result
-    ## DEF
-
 
     ## ----------------------------------------------
     ## doNewOrder
@@ -526,8 +506,6 @@ class MongodbDriver(AbstractDriver):
     def doNewOrder(self, params):
         (value, retries) = self.run_transaction_with_retries(self.client, self._doNewOrderTxn, "NEW_ORDER", params)
         return (value, retries)
-    ## DEF
-
 
     def _doNewOrderTxn(self, s, params):
         w_id = params["w_id"]
@@ -719,8 +697,6 @@ class MongodbDriver(AbstractDriver):
         misc = [ (w_tax, d_tax, d_next_o_id, total) ]
 
         return [ c, misc, item_data ]
-    ## DEF
-
 
     ## ----------------------------------------------
     ## doOrderStatus
@@ -728,8 +704,6 @@ class MongodbDriver(AbstractDriver):
     def doOrderStatus(self, params):
         #(value, retries) = self.run_transaction_with_retries(self.client, self._doOrderStatusTxn, "ORDER_STATUS", params)
         return (self._doOrderStatusTxn(None, params), 0)
-    ## DEF
-
 
     def _doOrderStatusTxn(self, s, params):
         w_id = params["w_id"]
@@ -784,8 +758,6 @@ class MongodbDriver(AbstractDriver):
         ## IF
 
         return [ c, order, orderLines ]
-    ## DEF
-
 
     ## ----------------------------------------------
     ## doPayment
@@ -793,8 +765,6 @@ class MongodbDriver(AbstractDriver):
     def doPayment(self, params):
         (value, retries) =  self.run_transaction_with_retries(self.client, self._doPaymentTxn, "PAYMENT", params)
         return (value, retries)
-    ## DEF
-
 
     def _doPaymentTxn(self, s, params):
         w_id = params["w_id"]
@@ -841,7 +811,7 @@ class MongodbDriver(AbstractDriver):
             # getCustomersByLastName
             # Get the midpoint customer's id
             search_fields['C_LAST'] = c_last
-            all_customers = list(self.customer.find(search_fields, return_fields, session=s)) # .sort([("NO_O_ID", 1)]) sort by C_FIRST is missing(!)
+            all_customers = list(self.customer.find(search_fields, return_fields, session=s))
             namecnt = len(all_customers)
             assert namecnt > 0, "Didn't find any matching customers w_id %d d_id %d c_last %s" % (w_id, d_id, c_last)
             index = (namecnt-1)/2
@@ -884,8 +854,6 @@ class MongodbDriver(AbstractDriver):
 
         # Hand back all the warehouse, district, and customer data
         return [ w, d, c ]
-    ## DEF
-
 
     ## ----------------------------------------------
     ## doStockLevel
@@ -893,8 +861,6 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     def doStockLevel(self, params):
         return (self._doStockLevelTxn(None, params), 0)
-    ## DEF
-
 
     def _doStockLevelTxn(self, s, params):
         w_id = params["w_id"]
@@ -959,8 +925,6 @@ class MongodbDriver(AbstractDriver):
         result = self.stock.find({"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}, "$comment": comment}).count()
 
         return int(result)
-    ## DEF
-
 
     def run_transaction(self, client, txn_callback, session, name, params):
         if self.noTransactions: return (True, txn_callback(session, params))
@@ -980,8 +944,6 @@ class MongodbDriver(AbstractDriver):
             print "ConnectionFailure during %s: " % name
             return (False, None)
         ## TRY
-    ## DEF
-
 
     # Should we retry txns within the same session or start a new one?
     def run_transaction_with_retries(self, client, txn_callback, name, params):
@@ -1003,6 +965,4 @@ class MongodbDriver(AbstractDriver):
                 sleep(txn_retry_counter * .1)
                 logging.debug("txn retry number for %s: %d" % (name, txn_retry_counter))
             ## WHILE
-    ## DEF
-
 ## CLASS
