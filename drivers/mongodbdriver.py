@@ -196,7 +196,9 @@ class MongodbDriver(AbstractDriver):
         "denormalize":      ("If true, data will be denormalized using MongoDB schema design best practices", True),
         "notransactions":   ("If true, transactions will not be used (benchmarking only)", False),
         "findandmodify":    ("If true, all things to update will be fetched via findAndModify", True),
-        "secondary_reads":  ("If true, we will perform causal reads against nearest if possible", True)
+        "secondary_reads":  ("If true, we will perform secondary reads", True),
+        "retry_writes":     ("If true, we will enable retryable writes", True),
+        "causal_consistency":  ("If true, we will perform causal reads ", True)
     }
     DENORMALIZED_TABLES = [
         constants.TABLENAME_ORDERS,
@@ -211,8 +213,6 @@ class MongodbDriver(AbstractDriver):
         self.database = None
         self.client = None
         self.executed=False
-        self.session_opts = { }
-        self.client_opts = { }
         self.w_orders = { }
         # things that are not better can't be set in config
         self.batchWrites = True
@@ -245,13 +245,14 @@ class MongodbDriver(AbstractDriver):
                logging.debug("'%s' not in %s conf, set to %s" % (key, self.name, str(MongodbDriver.DEFAULT_CONFIG[key][1])))
                config[key] = MongodbDriver.DEFAULT_CONFIG[key][1]
 
-        self.session_opts["causal_consistency"] = True
+        self.causal_consistency = config['causal_consistency'] == 'True'
 
         self.secondary_reads = config['secondary_reads'] == 'True'
+        self.retry_writes = config['retry_writes'] == 'True'
         if self.secondary_reads:
-            self.client_opts["read_preference"] = "secondaryPreferred"
+            self.read_preference = "secondaryPreferred"
         else:
-            self.client_opts["read_preference"] = "primary"
+            self.read_preference = "primary"
         ## IF
 
         self.denormalize = config['denormalize'] == 'True'
@@ -301,9 +302,9 @@ class MongodbDriver(AbstractDriver):
 
         try:
             if self.secondary_reads:
-                 self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"], maxStalenessSeconds=90)
+                 self.client = pymongo.MongoClient(real_uri, retryWrites=self.retry_writes, readPreference=self.read_preference, maxStalenessSeconds=90)
             else:
-                 self.client = pymongo.MongoClient(real_uri, readPreference=self.client_opts["read_preference"])
+                 self.client = pymongo.MongoClient(real_uri, retryWrites=self.retry_writes, readPreference=self.read_preference)
         except Exception, err:
             print "Was trying to connect to " + uri
             print "Got error " + str(err)
@@ -986,7 +987,7 @@ class MongodbDriver(AbstractDriver):
     def run_transaction_with_retries(self, client, txn_callback, name, params):
         txn_retry_counter = 0
         to = pymongo.client_session.TransactionOptions(read_concern=None, write_concern=self.writeConcern, read_preference=pymongo.read_preferences.Primary())
-        with client.start_session(default_transaction_options=to, causal_consistency=self.session_opts["causal_consistency"]) as s:
+        with client.start_session(default_transaction_options=to, causal_consistency=self.causal_consistency) as s:
             while True:
                 (ok, value) = self.run_transaction(client, txn_callback, s, name, params)
                 if ok:
