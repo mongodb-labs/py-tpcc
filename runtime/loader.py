@@ -262,9 +262,18 @@ class Loader:
     ## ==============================================
     def generateOrderLine(self, ol_w_id, ol_d_id, ol_o_id, ol_number, max_items, newOrder):
         ol_i_id = rand.number(1, max_items)
-        ol_supply_w_id = ol_w_id
         ol_delivery_d = datetime.now()
         ol_quantity = constants.INITIAL_QUANTITY
+
+        ## 1% of items are from a remote warehouse
+        remote = (rand.number(1, 100) == 1)
+        if self.scaleParameters.warehouses > 1 and remote:
+            ol_supply_w_id = rand.numberExcluding(self.scaleParameters.starting_warehouse,
+                                                  self.scaleParameters.ending_warehouse,
+                                                  ol_w_id)
+        else:
+            ol_supply_w_id = ol_w_id
+
 
         if newOrder == False:
             ol_amount = 0.00
