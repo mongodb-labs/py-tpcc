@@ -34,17 +34,17 @@ class Results:
         self.stop = None
         self.txn_id = 0
 
-        self.txn_counters = { }
-        self.txn_times = { }
-        self.txn_mins = { }
-        self.txn_maxs = { }
-        self.new_order_latencies = [ ]
-        self.txn_retries = { }
-        self.running = { }
+        self.txn_counters = {}
+        self.txn_times = {}
+        self.txn_mins = {}
+        self.txn_maxs = {}
+        self.new_order_latencies = []
+        self.txn_retries = {}
+        self.running = {}
 
     def startBenchmark(self):
         """Mark the benchmark as having been started"""
-        assert self.start == None, "start is not none on start"
+        assert self.start is None, "start is not none on start"
         logging.debug("Starting benchmark statistics collection")
         self.start = time.time()
         return self.start
@@ -52,7 +52,7 @@ class Results:
     def stopBenchmark(self):
         """Mark the benchmark as having been stopped"""
         assert self.start != None, "start is none on stop"
-        assert self.stop == None, "stop isn't none on stop"
+        assert self.stop is None, "stop isn't none on stop"
         logging.debug("Stopping benchmark statistics collection")
         self.stop = time.time()
 
@@ -69,6 +69,7 @@ class Results:
         del self.running[id]
         total_retries = self.txn_retries.get(txn_name, 0)
         self.txn_retries[txn_name] = total_retries + retries
+        # txn_start is currently unused, which means we don't include aborted txn in timing metrics
 
     def stopTransaction(self, id, retries=0):
         """Record that the benchmark completed an invocation of the given transaction"""
@@ -79,7 +80,8 @@ class Results:
         duration = time.time() - txn_start
         total_time = self.txn_times.get(txn_name, 0)
         self.txn_times[txn_name] = total_time + duration
-        if txn_name == 'NEW_ORDER': self.new_order_latencies.append(duration)
+        if txn_name == 'NEW_ORDER':
+            self.new_order_latencies.append(duration)
 
         total_retries = self.txn_retries.get(txn_name, 0)
         self.txn_retries[txn_name] = total_retries + retries
@@ -119,10 +121,10 @@ class Results:
     def __str__(self):
         return self.show()
 
-    def show(self, load_time = None, driver=None, threads=1, warehouses=1):
-        if self.start == None:
+    def show(self, load_time=None, driver=None, threads=1, warehouses=1):
+        if not self.start:
             return "Benchmark not started"
-        if self.stop == None:
+        if not self.stop:
             duration = time.time() - self.start
         else:
             duration = self.stop - self.start
@@ -134,45 +136,46 @@ class Results:
         line = "-"*total_width
 
         ret = u"" + "="*total_width + "\n"
-        if load_time != None:
+        if load_time:
             ret += "Data Loading Time: %d seconds\n\n" % (load_time)
 
         ret += "Execution Results after %d seconds\n%s" % (duration, line)
-        ret += f % ("", "Completed", u"DBTxnStarted",u"Time (µs)", u"Rate per thread", u"% Count", u"% Time", u"# Retries+aborts", u"min latency ms", u"avg latency ms", u"max latency ms")
+        ret += f % ("", "Completed", u"DBTxnStarted", u"Time (µs)", u"Rate per thread", u"% Count", u"% Time", u"# Retries+aborts", u"min latency ms", u"avg latency ms", u"max latency ms")
 
         total_time = 0
         total_cnt = 0
         total_retries = 0
         total_dbtxn = 0
-        for txn in self.txn_counters.keys():
+        for txn in self.txn_counters:
             txn_time = self.txn_times[txn]
             txn_cnt = self.txn_counters[txn]
             dbtxn_count = txn_cnt
             if txn == "DELIVERY":
-               dbtxn_count = txn_cnt*10
+                dbtxn_count = txn_cnt*10
             total_time += txn_time
             total_cnt += txn_cnt
             total_dbtxn += dbtxn_count
 
-        for txn in sorted(self.txn_counters.keys()):
+        for txn in sorted(self.txn_counters):
             txn_time = self.txn_times[txn]
             txn_cnt = self.txn_counters[txn]
             min_latency = u"%5.2f" % (1000 * self.txn_mins[txn])
             max_latency = u"%6.2f" % (1000 * self.txn_maxs[txn])
             dbtxn_count = txn_cnt
             if txn == "DELIVERY":
-               dbtxn_count = txn_cnt*10
+                dbtxn_count = txn_cnt*10
             txn_retries = self.txn_retries[txn]
             total_retries += txn_retries
             rate = u"%.02f txn/s" % ((txn_cnt / txn_time))
             avg_latency = u"%5.02f" % (1000* (txn_time / txn_cnt))
-            percCnt = u"%5.02f" % ( (100.0*txn_cnt / total_cnt) )
-            percTime = u"%5.02f" % ( (100.0*txn_time / total_time) )
-            ret += f % (txn, str(txn_cnt), str(dbtxn_count), str(txn_time), rate, percCnt, percTime,
-                str(txn_retries)+"/"+str(100.00*txn_retries/dbtxn_count)[:5]+"%",
-                min_latency, avg_latency, max_latency)
+            perc_cnt = u"%5.02f" % ((100.0*txn_cnt / total_cnt))
+            perc_time = u"%5.02f" % ((100.0*txn_time / total_time))
+            ret += f % (txn, str(txn_cnt), str(dbtxn_count), str(txn_time), rate, perc_cnt, perc_time,
+                        str(txn_retries)+"/"+str(100.00*txn_retries/dbtxn_count)[:5]+"%",
+                        min_latency, avg_latency, max_latency)
 
-        if 'NEW_ORDER' not in self.txn_counters: self.txn_counters['NEW_ORDER'] = 0
+        if 'NEW_ORDER' not in self.txn_counters:
+            self.txn_counters['NEW_ORDER'] = 0
         ret += "\n" + ("-"*total_width)
         total_rate = "%.02f txn/s" % ((total_cnt / total_time))
         samples = len(self.new_order_latencies)
@@ -189,16 +192,16 @@ class Results:
                 time.strftime("%Y-%m-%d %H:%M:%S"),
                 ("normal", "denorm")[driver.denormalize],
                 threads,
-                ("with", "w/o ")[driver.noTransactions],
+                ("with", "w/o ")[driver.no_transactions],
                 warehouses,
                 round(self.txn_counters['NEW_ORDER']*60/duration), self.txn_counters['NEW_ORDER'], duration,
-                ("off", "on")[driver.batchWrites], total_retries, str(100.0*total_retries/total_dbtxn)[:5],
-                ("w/o ", "with")[driver.findAndModify],
+                ("off", "on")[driver.batch_writes], total_retries, str(100.0*total_retries/total_dbtxn)[:5],
+                ("w/o ", "with")[driver.find_and_modify],
                 driver.read_preference,
                 u"%6.2f" % (1000.0*lat[ip50]), u"%6.2f" % (1000.0*lat[ip75]),
                 u"%6.2f" % (1000.0*lat[ip90]), u"%6.2f" % (1000.0*lat[ip95]), u"%6.2f" % (1000.0*lat[ip99]),
                 u"%6.2f" % (1000.0*lat[-1]),
-                str(driver.writeConcern), ('false','true')[driver.causal_consistency],
-                ('false','true')[driver.allDeliveriesInOneTransaction],('false','true')[driver.retry_writes],total_dbtxn)
-        return (ret.encode('ascii', "ignore"))
+                str(driver.write_concern), ('false', 'true')[driver.causal_consistency],
+                ('false', 'true')[driver.all_in_one_txn], ('false', 'true')[driver.retry_writes])
+        return ret.encode('ascii', "ignore")
 ## CLASS

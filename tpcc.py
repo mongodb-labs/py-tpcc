@@ -40,7 +40,6 @@ from pprint import pprint, pformat
 
 from util import results, scaleparameters
 from runtime import executor, loader
-import drivers
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(funcName)s:%(lineno)03d] %(levelname)-5s: %(message)s",
@@ -50,7 +49,8 @@ logging.basicConfig(level=logging.INFO,
 
 console = logging.StreamHandler()
 console.setLevel(logging.INFO)
-console.setFormatter(logging.Formatter('%(asctime)s [%(funcName)s:%(lineno)03d] %(levelname)-5s: %(message)s'))
+console.setFormatter(logging.Formatter(
+    '%(asctime)s [%(funcName)s:%(lineno)03d] %(levelname)-5s: %(message)s'))
 logging.getLogger('').addHandler(console)
 
 
@@ -69,8 +69,9 @@ def createDriverClass(name):
 ## ==============================================
 def getDrivers():
     drivers = []
-    for f in map(lambda x: os.path.basename(x).replace("driver.py", ""), glob.glob("./drivers/*driver.py")):
-        if f != "abstract": drivers.append(f)
+    for f in [os.path.basename(drv).replace("driver.py", "") for drv in glob.glob("./drivers/*driver.py")]:
+        if f != "abstract":
+            drivers.append(f)
     return drivers
 ## DEF
 
@@ -78,11 +79,11 @@ def getDrivers():
 ## startLoading
 ## ==============================================
 def startLoading(driverClass, scaleParameters, args, config):
-    logging.debug("Creating client pool with %d processes" % args['clients'])
+    logging.debug("Creating client pool with %d processes", args['clients'])
     pool = multiprocessing.Pool(args['clients'])
 
     # Split the warehouses into chunks
-    w_ids = map(lambda x: [], range(args['clients']))
+    w_ids = [[] for _ in range(args['clients'])]
     for w_id in range(scaleParameters.starting_warehouse, scaleParameters.ending_warehouse+1):
         idx = w_id % args['clients']
         w_ids[idx].append(w_id)
@@ -95,7 +96,7 @@ def startLoading(driverClass, scaleParameters, args, config):
     ## FOR
 
     pool.close()
-    logging.debug("Waiting for %d loaders to finish" % args['clients'])
+    logging.debug("Waiting for %d loaders to finish", args['clients'])
     pool.join()
 ## DEF
 
@@ -105,7 +106,7 @@ def startLoading(driverClass, scaleParameters, args, config):
 def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
     driver = driverClass(args['ddl'])
     assert driver != None, "Driver in loadFunc is none!"
-    logging.debug("Starting client execution: %s [warehouses=%d]" % (driver, len(w_ids)))
+    logging.debug("Starting client execution: %s [warehouses=%d]", driver, len(w_ids))
 
     config['load'] = True
     config['execute'] = False
@@ -121,7 +122,7 @@ def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
     except KeyboardInterrupt:
         return -1
     except (Exception, AssertionError), ex:
-        logging.warn("Failed to load data: %s" % (ex))
+        logging.warn("Failed to load data: %s", ex)
         raise
 
 ## DEF
@@ -130,12 +131,12 @@ def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
 ## startExecution
 ## ==============================================
 def startExecution(driverClass, scaleParameters, args, config):
-    logging.debug("Creating client pool with %d processes" % args['clients'])
+    logging.debug("Creating client pool with %d processes", args['clients'])
     pool = multiprocessing.Pool(args['clients'])
     debug = logging.getLogger().isEnabledFor(logging.DEBUG)
 
     worker_results = []
-    for i in range(args['clients']):
+    for _ in range(args['clients']):
         r = pool.apply_async(executorFunc, (driverClass, scaleParameters, args, config, debug,))
         worker_results.append(r)
     ## FOR
@@ -147,7 +148,8 @@ def startExecution(driverClass, scaleParameters, args, config):
         asyncr.wait()
         r = asyncr.get()
         assert r != None, "No results object returned by thread!"
-        if type(r) == int and r == -1: sys.exit(1)
+        if r == -1:
+            sys.exit(1)
         total_results.append(r)
     ## FOR
 
@@ -160,7 +162,7 @@ def startExecution(driverClass, scaleParameters, args, config):
 def executorFunc(driverClass, scaleParameters, args, config, debug):
     driver = driverClass(args['ddl'])
     assert driver != None, "No driver in executorFunc"
-    logging.debug("Starting client execution: %s" % driver)
+    logging.debug("Starting client execution: %s", driver)
 
     config['execute'] = True
     config['reset'] = False
@@ -191,7 +193,8 @@ if __name__ == '__main__':
                          help='Number of Warehouses')
     aparser.add_argument('--duration', default=60, type=int, metavar='D',
                          help='How long to run the benchmark in seconds')
-    aparser.add_argument('--ddl', default=os.path.realpath(os.path.join(os.path.dirname(__file__), "tpcc.sql")),
+    aparser.add_argument('--ddl',
+                         default=os.path.realpath(os.path.join(os.path.dirname(__file__), "tpcc.sql")),
                          help='Path to the TPC-C DDL SQL file')
     aparser.add_argument('--clients', default=1, type=int, metavar='N',
                          help='The number of blocking clients to fork')
@@ -207,7 +210,8 @@ if __name__ == '__main__':
                          help='Enable debug log messages')
     args = vars(aparser.parse_args())
 
-    if args['debug']: logging.getLogger().setLevel(logging.DEBUG)
+    if args['debug']:
+        logging.getLogger().setLevel(logging.DEBUG)
 
     ## Create a handle to the target client driver
     driverClass = createDriverClass(args['system'])
@@ -222,32 +226,39 @@ if __name__ == '__main__':
 
     ## Load Configuration file
     if args['config']:
-        logging.debug("Loading configuration file '%s'" % args['config'])
+        logging.debug("Loading configuration file '%s'", args['config'])
         cparser = SafeConfigParser()
         cparser.read(os.path.realpath(args['config'].name))
         config = dict(cparser.items(args['system']))
     else:
-        logging.debug("Using default configuration for %s" % args['system'])
+        logging.debug("Using default configuration for %s", args['system'])
         defaultConfig = driver.makeDefaultConfig()
-        config = dict(map(lambda x: (x, defaultConfig[x][1]), defaultConfig.keys()))
+        config = dict([(param, defaultConfig[param][1]) for param in defaultConfig.keys()])
     config['reset'] = args['reset']
     config['load'] = False
     config['execute'] = False
-    if config['reset']: logging.info("Reseting database")
+    if config['reset']:
+        logging.info("Reseting database")
     driver.loadConfig(config)
-    logging.info("Initializing TPC-C benchmark using %s" % driver)
+    logging.info("Initializing TPC-C benchmark using %s", driver)
 
     ## Create ScaleParameters
     scaleParameters = scaleparameters.makeWithScaleFactor(args['warehouses'], args['scalefactor'])
-    if args['debug']: logging.debug("Scale Parameters:\n%s" % scaleParameters)
+    if args['debug']:
+        logging.debug("Scale Parameters:\n%s", scaleParameters)
 
     ## DATA LOADER!!!
     load_time = None
     if not args['no_load']:
-        logging.info("Loading TPC-C benchmark data using %s" % (driver))
+        logging.info("Loading TPC-C benchmark data using %s", (driver))
         load_start = time.time()
         if args['clients'] == 1:
-            l = loader.Loader(driver, scaleParameters, range(scaleParameters.starting_warehouse, scaleParameters.ending_warehouse+1), True)
+            l = loader.Loader(
+                driver,
+                scaleParameters,
+                range(scaleParameters.starting_warehouse, scaleParameters.ending_warehouse+1),
+                True
+            )
             driver.loadStart()
             l.execute()
             driver.loadFinish()
@@ -267,7 +278,7 @@ if __name__ == '__main__':
             results = startExecution(driverClass, scaleParameters, args, config)
         assert results, "No results from execution for %d client!" % args['clients']
         logging.info("Final Results")
-        logging.info("Threads: %d" % args['clients'])
+        logging.info("Threads: %d", args['clients'])
         logging.info(results.show(load_time, driver, args['clients'], args['warehouses']))
     ## IF
 
