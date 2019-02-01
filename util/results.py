@@ -202,6 +202,6 @@ class Results:
                 u"%6.2f" % (1000.0*lat[ip90]), u"%6.2f" % (1000.0*lat[ip95]), u"%6.2f" % (1000.0*lat[ip99]),
                 u"%6.2f" % (1000.0*lat[-1]),
                 str(driver.write_concern), ('false', 'true')[driver.causal_consistency],
-                ('false', 'true')[driver.all_in_one_txn], ('false', 'true')[driver.retry_writes])
+                ('false', 'true')[driver.all_in_one_txn], ('false', 'true')[driver.retry_writes],total_dbtxn)
         return ret.encode('ascii', "ignore")
 ## CLASS
