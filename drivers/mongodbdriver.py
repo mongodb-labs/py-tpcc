@@ -1086,8 +1086,6 @@ class MongodbDriver(AbstractDriver):
                         logging.debug("Committed operation %s after %d retries",
                                       name,
                                       txn_retry_counter)
-                    if value is None: # account for the 1% aborted operations in the retries count
-                        txn_retry_counter = txn_retry_counter+1
                     return (value, txn_retry_counter)
                 ## IF
 
