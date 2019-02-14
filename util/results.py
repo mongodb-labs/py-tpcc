@@ -209,7 +209,7 @@ class Results:
                 ("with", "w/o ")[driver.no_transactions],
                 warehouses,
                 round(self.txn_counters['NEW_ORDER']*60/duration), self.txn_counters['NEW_ORDER'], duration,
-                ("off", "on")[driver.batch_writes], total_retries, str(100.0*total_retries/txn_cnt)[:5],
+                ("off", "on")[driver.batch_writes], total_retries, str(100.0*total_retries/total_cnt)[:5],
                 ("w/o ", "with")[driver.find_and_modify],
                 driver.read_preference,
                 u"%6.2f" % (1000* lat[int(samples/2)]), u"%6.2f" % (1000*lat[int(samples/100.0*75)]), 
@@ -217,6 +217,6 @@ class Results:
                 u"%6.2f" % (1000*lat[int(samples/100.0*99)]),
                 u"%6.2f" % (1000.0*lat[-1]),
                 str(driver.write_concern), ('false', 'true')[driver.causal_consistency],
-                ('false', 'true')[driver.all_in_one_txn], ('false', 'true')[driver.retry_writes],txn_cnt,total_aborts)
+                ('false', 'true')[driver.all_in_one_txn], ('false', 'true')[driver.retry_writes],total_cnt,total_aborts)
         return ret.encode('ascii', "ignore")
 ## CLASS
