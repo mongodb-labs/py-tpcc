@@ -289,7 +289,8 @@ class MongodbDriver(AbstractDriver):
 
         self.client = pymongo.MongoClient(real_uri,
                                           retryWrites=self.retry_writes,
-                                          readPreference=self.read_preference)
+                                          readPreference=self.read_preference,
+                                          readConcernLevel="majority")
 
         # set default writeConcern on the database
         self.database = self.client.get_database(name=str(config['name']), write_concern=self.write_concern)
@@ -761,7 +762,7 @@ class MongodbDriver(AbstractDriver):
     ## doOrderStatus
     ## ----------------------------------------------
     def doOrderStatus(self, params):
-        # (value, retries) = self.run_transaction_with_retries(self._doOrderStatusTxn, "ORDER_STATUS", params)
+        (value, retries) = self.run_transaction_with_retries(self._doOrderStatusTxn, "ORDER_STATUS", params)
         return (self._doOrderStatusTxn(None, params), 0)
 
     def _doOrderStatusTxn(self, s, params):
