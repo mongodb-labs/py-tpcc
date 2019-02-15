@@ -74,6 +74,9 @@ class Results:
         self.txn_retries[txn_name] = total_retries + retries
         total_aborts = self.txn_aborts.get(txn_name, 0)
         self.txn_aborts[txn_name] = total_aborts + 1
+        if txn_name not in self.retries:
+            self.retries[txn_name] = []
+        self.retries[txn_name].append(retries)
         # txn_start is currently unused, which means we don't include aborted txn in timing metrics
 
     def stopTransaction(self, id, retries=0):
