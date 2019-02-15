@@ -273,10 +273,8 @@ class Loader:
                                                   self.scaleParameters.ending_warehouse,
                                                   ol_w_id)
 
-        if newOrder == False:
-            ol_amount = 0.00
-        else:
-            ol_amount = rand.fixedPoint(constants.MONEY_DECIMALS, constants.MIN_AMOUNT, constants.MAX_PRICE * constants.MAX_OL_QUANTITY)
+        ol_amount = rand.fixedPoint(constants.MONEY_DECIMALS, constants.MIN_AMOUNT, constants.MAX_PRICE * constants.MAX_OL_QUANTITY)
+        if newOrder:
             ol_delivery_d = None
         ol_dist_info = rand.astring(constants.DIST, constants.DIST)
 
