@@ -193,7 +193,7 @@ class Results:
             #perc_time = u"%5.02f" % ((100.0*txn_time / total_time))
             just_retries = [x for x in self.retries[txn] if x>0]
             ret += f % (txn, str(txn_cnt), u"%9.3f" % (txn_time), rate, 
-                        str(len(just_retries))+","+str(sum(just_retries))+","+str(100.00*txn_retries/txn_cnt)[:5]+"%",
+                        str(len(just_retries))+","+str(sum(just_retries))+","+str(txn_retries),
                         min_latency, ip50, ip75, ip90, ip95, ip99, max_latency, txn_aborts)
 
         if 'NEW_ORDER' not in self.txn_counters:
