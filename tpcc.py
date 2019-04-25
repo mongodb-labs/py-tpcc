@@ -111,6 +111,7 @@ def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
     config['load'] = True
     config['execute'] = False
     config['reset'] = False
+    config['warehouses'] = args['warehouses']
     driver.loadConfig(config)
 
     try:
@@ -239,6 +240,7 @@ if __name__ == '__main__':
     config['execute'] = False
     if config['reset']:
         logging.info("Reseting database")
+    config['warehouses'] = args['warehouses']
     driver.loadConfig(config)
     logging.info("Initializing TPC-C benchmark using %s", driver)
 
@@ -279,7 +281,7 @@ if __name__ == '__main__':
         assert results, "No results from execution for %d client!" % args['clients']
         logging.info("Final Results")
         logging.info("Threads: %d", args['clients'])
-        logging.info(results.show(load_time, driver, args['clients'], args['warehouses']))
+        logging.info(results.show(load_time, driver, args['clients']))
     ## IF
 
 ## MAIN
