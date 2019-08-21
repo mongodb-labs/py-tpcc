@@ -1,5 +1,7 @@
 *.swp
 *.pyc
-.#kate-*
 *.config
 *.log
+*.log.*
+*.out
+*.csv
