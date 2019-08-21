@@ -1,0 +1,13 @@
+# MongodbDriver Configuration File
+# generate example with default values via `tpcc.py --print-config mongodb`
+[mongodb]
+# The mongodb connection string or full URI or mongodb+srv string
+uri                  = mongodb://localhost:27017
+causal_consistency   = True
+findandmodify        = True
+name                 = tpcc
+secondary_reads      = True
+denormalize          = True
+retry_writes         = True
+# user                 = username
+# passwd               = passwd
