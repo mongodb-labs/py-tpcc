@@ -1,0 +1,7 @@
+[mongodb]
+denormalize          = False
+uri                  = mongodb://listOfHosts:27017/test?ssl=true&replicaSet=RSName&authSource=admin&retryWrites=true
+user                 = username
+passwd               = passwd
+name                 = tpcc
+findAndModify        = True
