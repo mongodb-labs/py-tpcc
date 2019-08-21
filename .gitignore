@@ -1,8 +1,8 @@
 *.swp
 *.pyc
+*.config
 *.csv
 *.out
 *.log
 *.log.*
-*.config
 temp*
