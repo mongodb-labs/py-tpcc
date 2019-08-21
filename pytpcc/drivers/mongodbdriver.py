@@ -420,9 +420,6 @@ class MongodbDriver(AbstractDriver):
             self.w_orders.clear()
         ## IF
 
-    def loadFinish(self):
-        print "in loadFinish"
-
     def executeStart(self):
         """Optional callback before the execution for each client starts"""
         return None
