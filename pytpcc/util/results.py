@@ -126,6 +126,7 @@ class Results:
             self.txn_times[txn_name] = orig_time + r.txn_times[txn_name]
             self.txn_retries[txn_name] = orig_retries + r.txn_retries[txn_name]
             self.txn_aborts[txn_name] = orig_aborts + r.txn_aborts[txn_name]
+            print "%s [cnt=%d, time=%d]" % (txn_name, self.txn_counters[txn_name], self.txn_times[txn_name])
             # logging.debug("%s [cnt=%d, time=%d]" % (txn_name, self.txn_counters[txn_name], self.txn_times[txn_name]))
             if txn_name not in self.latencies:
                 self.latencies[txn_name] = []
@@ -196,13 +197,14 @@ class Results:
             ret += f % (txn, str(txn_cnt), u"%9.3f" % (txn_time), perc_cnt,
                         str(len(just_retries))+","+str(sum(just_retries)),
                         min_latency, ip50, ip75, ip90, ip95, ip99, max_latency, txn_aborts)
-            result_doc[txn] = {'latency':{'min':1000*self.txn_mins[txn], 'max':self.txn_maxs[txn], 'p50':1000* lat[int(samples/2)],
+            result_doc[txn] = {'latency':{'min':1000*self.txn_mins[txn], 'max':1000*self.txn_maxs[txn], 'p50':1000* lat[int(samples/2)],
                                           'p75':1000*lat[int(samples/100.0*75)],'p90':1000*lat[int(samples/100.0*90)],
                                           'p95':1000*lat[int(samples/100.0*95)],'p99':1000*lat[int(samples/100.0*99)]},
                                'total':txn_cnt}
             if just_retries:
                 result_doc[txn]['retries']={'retries_ops':freq_dist, 'retries_txn_total':total_retries, 'retries_total_ops':len(just_retries)}
 
+        print(self.txn_counters)
         txn_new_order = self.txn_counters.get('NEW_ORDER', 0)
         ret += "\n" + line # ("-"*total_width)
         #total_rate = "%.02f txn/s" % ((total_cnt / total_time))
@@ -247,5 +249,6 @@ class Results:
                 ('false', 'true')[driver.all_in_one_txn], ('false', 'true')[driver.retry_writes],total_cnt,total_aborts)
         if driver:
             driver.save_result(result_doc)
+        print(result_doc)
         return ret.encode('ascii', "ignore")
 ## CLASS
