@@ -1138,6 +1138,8 @@ class MongodbDriver(AbstractDriver):
            del ss["$clusterTime"]
         if "transportSecurity" in ss:
            del ss["transportSecurity"]
+        if "metrics" in ss and "aggStageCounters" in ss["metrics"]:
+           del ss["metrics"]["aggStageCounters"]
         return ss
 
     def save_result(self, result_doc):
