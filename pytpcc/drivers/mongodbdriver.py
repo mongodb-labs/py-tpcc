@@ -1140,6 +1140,10 @@ class MongodbDriver(AbstractDriver):
            del ss["transportSecurity"]
         if "metrics" in ss and "aggStageCounters" in ss["metrics"]:
            del ss["metrics"]["aggStageCounters"]
+        if "metrics" in ss and "operatorCounters" in ss["metrics"] and "expressions" in ss["metrics"]["operatorCounters"]:
+           del ss["metrics"]["operatorCounters"]["expressions"]
+        if "metrics" in ss and "operatorCounters" in ss["metrics"] and "match" in ss["metrics"]["operatorCounters"]:
+           del ss["metrics"]["operatorCounters"]["match"]
         return ss
 
     def save_result(self, result_doc):
