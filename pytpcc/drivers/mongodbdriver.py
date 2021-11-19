@@ -1149,6 +1149,6 @@ class MongodbDriver(AbstractDriver):
     def save_result(self, result_doc):
         self.result_doc.update(result_doc)
         self.result_doc['after']=self.get_server_status()
-        self.client.test.results.save(self.result_doc, check_keys=False)
+        self.client.test.results.insert_one(self.result_doc)
 
 ## CLASS
