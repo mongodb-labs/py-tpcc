@@ -40,7 +40,7 @@ from time import sleep
 import pymongo
 
 import constants
-from abstractdriver import AbstractDriver
+from .abstractdriver import AbstractDriver
 
 TABLE_COLUMNS = {
     constants.TABLENAME_ITEM: [
@@ -345,9 +345,9 @@ class MongodbDriver(AbstractDriver):
             logging.error("ConnectionFailure %d (%s) when connected to %s: ",
                           exc.code, exc.details, display_uri)
             return
-        except pymongo.errors.PyMongoError, err:
+        except pymongo.errors.PyMongoError as err:
             logging.error("Some general error (%s) when connected to %s: ", str(err), display_uri)
-            print "Got some other error: %s" % str(err)
+            print("Got some other error: %s" % str(err))
             return
 
     ## ----------------------------------------------
@@ -408,7 +408,7 @@ class MongodbDriver(AbstractDriver):
                 tuple_dicts.append(dict([(columns[i], t[i]) for i in num_columns]))
             ## FOR
 
-            self.database[tableName].insert(tuple_dicts)
+            self.database[tableName].insert_many(tuple_dicts)
         ## IF
 
         return
@@ -416,7 +416,7 @@ class MongodbDriver(AbstractDriver):
     def loadFinishDistrict(self, w_id, d_id):
         if self.denormalize:
             logging.debug("Pushing %d denormalized ORDERS records for WAREHOUSE %d DISTRICT %d into MongoDB", len(self.w_orders), w_id, d_id)
-            self.database[constants.TABLENAME_ORDERS].insert(self.w_orders.values())
+            self.database[constants.TABLENAME_ORDERS].insert_many(self.w_orders.values())
             self.w_orders.clear()
         ## IF
 
@@ -593,7 +593,7 @@ class MongodbDriver(AbstractDriver):
                                                   session=s)
             if not d:
                 d1 = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id, "$comment": "new order did not find district"})
-                print d1, w_id, d_id, c_id, i_ids, i_w_ids, s_dist_col
+                print(d1, w_id, d_id, c_id, i_ids, i_w_ids, s_dist_col)
             assert d, "Couldn't find district in new order w_id %d d_id %d" % (w_id, d_id)
         else:
             d = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id, "$comment": comment},
@@ -621,7 +621,9 @@ class MongodbDriver(AbstractDriver):
             #print constants.INVALID_ITEM_MESSAGE + ", Aborting transaction (ok for 1%)"
             return None
         ## IF
-        items = sorted(items, key=lambda x: i_ids.index(x['I_ID']))
+
+        xxi_ids = tuple(map(lambda o: o['I_ID'], items))
+        items = sorted(items, key=lambda x: xxi_ids.index(x['I_ID']))
 
         # getWarehouseTaxRate
         w = self.warehouse.find_one({"W_ID": w_id, "$comment": comment}, {"_id":0, "W_TAX": 1}, session=s)
@@ -676,7 +678,9 @@ class MongodbDriver(AbstractDriver):
                                               session=s))
         ## IF
         assert len(all_stocks) == ol_cnt, "all_stocks len %d != ol_cnt %d" % (len(all_stocks), ol_cnt)
-        all_stocks = sorted(all_stocks, key=lambda x: item_w_list.index((x['S_I_ID'], x["S_W_ID"])))
+
+        xxxi_ids = tuple(map(lambda o: (o['S_I_ID'], o['S_W_ID']), all_stocks))
+        all_stocks = sorted(all_stocks, key=lambda x: xxxi_ids.index((x['S_I_ID'], x["S_W_ID"])))
 
         ## ----------------
         ## Insert Order Line, Stock Item Information
@@ -820,7 +824,7 @@ class MongodbDriver(AbstractDriver):
             all_customers = list(self.customer.find(search_fields, return_fields, session=s))
             namecnt = len(all_customers)
             assert namecnt > 0, "No matching customer for last name %s!" % c_last
-            index = (namecnt-1)/2
+            index = (namecnt-1)//2
             c = all_customers[index]
             c_id = c["C_ID"]
         ## IF
@@ -891,7 +895,7 @@ class MongodbDriver(AbstractDriver):
                                                   session=s)
             if not d:
                 d1 = self.district.find_one({"D_ID": d_id, "D_W_ID": w_id, "$comment": "payment did not find district"})
-                print d1, w_id, d_id, h_amount, c_w_id, c_d_id, c_id, c_last, h_date
+                print(d1, w_id, d_id, h_amount, c_w_id, c_d_id, c_id, c_last, h_date)
             assert d, "Couldn't find district in payment w_id %d d_id %d" % (w_id, d_id)
         else:
             d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id, "$comment": comment},
@@ -942,7 +946,7 @@ class MongodbDriver(AbstractDriver):
             all_customers = list(self.customer.find(search_fields, return_fields, session=s))
             namecnt = len(all_customers)
             assert namecnt > 0, "No matching customer w %d d %d clast %s" % (w_id, d_id, c_last)
-            index = (namecnt-1)/2
+            index = (namecnt-1)//2
             c = all_customers[index]
             c_id = c["C_ID"]
         ## IF
@@ -1075,9 +1079,9 @@ class MongodbDriver(AbstractDriver):
             ol_ids.add(ol["OL_I_ID"])
         ## FOR
 
-        result = self.stock.find({"S_W_ID": w_id,
+        result = self.stock.count_documents({"S_W_ID": w_id,
                                   "S_I_ID": {"$in": list(ol_ids)},
-                                  "S_QUANTITY": {"$lt": threshold}, "$comment": comment}).count()
+                                  "S_QUANTITY": {"$lt": threshold}, "$comment": comment})
 
         return int(result)
 
@@ -1095,11 +1099,11 @@ class MongodbDriver(AbstractDriver):
                               exc.code, exc.details, name)
                 return (False, None)
             logging.error("Failed with unknown OperationFailure: %d", exc.code)
-            print "Failed with unknown OperationFailure: %d" % exc.code
-            print exc.details
+            print("Failed with unknown OperationFailure: %d" % exc.code)
+            print(exc.details)
             raise
         except pymongo.errors.ConnectionFailure:
-            print "ConnectionFailure during %s: " % name
+            print("ConnectionFailure during %s: " % name)
             return (False, None)
         ## TRY
 
