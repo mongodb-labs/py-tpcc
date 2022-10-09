@@ -341,9 +341,8 @@ class MongodbDriver(AbstractDriver):
             logging.error("ServerSelectionTimeoutError %d (%s) when connected to %s: ",
                           exc.code, exc.details, display_uri)
             return
-        except pymongo.errors.ConnectionFailure:
-            logging.error("ConnectionFailure %d (%s) when connected to %s: ",
-                          exc.code, exc.details, display_uri)
+        except pymongo.errors.ConnectionFailure, err:
+            logging.error("ConnectionFailure (%s) when connected to %s: ", str(err), display_uri)
             return
         except pymongo.errors.PyMongoError, err:
             logging.error("Some general error (%s) when connected to %s: ", str(err), display_uri)
@@ -1150,6 +1149,10 @@ class MongodbDriver(AbstractDriver):
         self.result_doc.update(result_doc)
         self.result_doc['after']=self.get_server_status()
         # saving test results and server statuses ('before' and 'after') into MongoDB as a single document
-        self.client.test.results.insert_one(self.result_doc)
+        try:
+           self.client.test.results.insert_one(self.result_doc)
+        except pymongo.errors.PyMongoError, err:
+           logging.error("An error (%s) occured during saving results into MongoDB", str(err))
+           print "An error (%s) occured during saving results into MongoDB" % str(err)
 
 ## CLASS

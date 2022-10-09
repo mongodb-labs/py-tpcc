@@ -238,7 +238,7 @@ class Results:
                 ("with", "w/o ")[driver.no_transactions],
                 driver.warehouses,
                 round(txn_new_order*60/duration), txn_new_order, duration,
-                ("off", "on")[driver.batch_writes], total_retries, str(100.0*total_retries/total_cnt)[:5],
+                ("off", "on")[driver.batch_writes], total_retries, str(total_cnt and 100.0*total_retries/total_cnt)[:5],
                 ("w/o ", "with")[driver.find_and_modify],
                 driver.read_preference,
                 u"%6.2f" % (1000* lat[int(samples/2)]), u"%6.2f" % (1000*lat[int(samples/100.0*75)]),
