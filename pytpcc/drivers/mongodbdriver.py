@@ -239,6 +239,7 @@ class MongodbDriver(AbstractDriver):
         self.shards = 1
         self.use_encryption = 0
         self.load = False
+        self.execute = False
 
         ## Create member mapping to collections
         for name in constants.ALL_TABLES:
@@ -277,6 +278,7 @@ class MongodbDriver(AbstractDriver):
             self.read_preference = "nearest"
         self.use_encryption = config['fle'] == 'True'
         self.load = config['load'] == 'True'
+        self.execute = config['execute'] == 'True'
 
         if 'write_concern' in config and config['write_concern'] and config['write_concern'] != '1':
             # only expecting string 'majority' as an alternative to w:1
@@ -527,9 +529,10 @@ class MongodbDriver(AbstractDriver):
 
     def executeFinish(self):
         """Callback after the execution for each client finishes"""
-        if self.use_encryption:
-            self.client_encryption.close()
-        self.client.close()
+        if self.execute:
+            if self.use_encryption:
+                self.client_encryption.close()
+            self.client.close()
 
     ## ----------------------------------------------
     ## doDelivery
