@@ -146,6 +146,10 @@ if __name__ == '__main__':
 
     if args['debug']: logging.getLogger().setLevel(logging.DEBUG)
 
+    ## Arguments validation
+    assert args['reset'] == False or args['no_load'] == False, \
+        "'--reset' and '--no-load' are incompatible with each other"
+
     ## Create a handle to the target client driver
     driverClass = createDriverClass(args['system'])
     assert driverClass != None, "Failed to find '%s' class" % args['system']
