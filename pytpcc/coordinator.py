@@ -160,7 +160,7 @@ if __name__ == '__main__':
     ## Load Configuration file
     if args['config']:
         logging.debug("Loading configuration file '%s'" % args['config'])
-        cparser = SafeConfigParser()
+        cparser = ConfigParser()
         cparser.read(os.path.realpath(args['config'].name))
         config = dict(cparser.items(args['system']))
     else:

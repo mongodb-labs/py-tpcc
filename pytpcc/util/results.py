@@ -126,7 +126,7 @@ class Results:
             self.txn_times[txn_name] = orig_time + r.txn_times[txn_name]
             self.txn_retries[txn_name] = orig_retries + r.txn_retries[txn_name]
             self.txn_aborts[txn_name] = orig_aborts + r.txn_aborts[txn_name]
-            print "%s [cnt=%d, time=%d]" % (txn_name, self.txn_counters[txn_name], self.txn_times[txn_name])
+            print("%s [cnt=%d, time=%d]" % (txn_name, self.txn_counters[txn_name], self.txn_times[txn_name]))
             # logging.debug("%s [cnt=%d, time=%d]" % (txn_name, self.txn_counters[txn_name], self.txn_times[txn_name]))
             if txn_name not in self.latencies:
                 self.latencies[txn_name] = []

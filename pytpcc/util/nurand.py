@@ -29,13 +29,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 # -----------------------------------------------------------------------
 
-import rand
+import random
 
 def makeForLoad():
     """Create random NURand constants, appropriate for loading the database."""
-    cLast = rand.number(0, 255)
-    cId = rand.number(0, 1023)
-    orderLineItemId = rand.number(0, 8191)
+    cLast = random.randint(0, 255)
+    cId = random.randint(0, 1023)
+    orderLineItemId = random.randint(0, 8191)
     return NURandC(cLast, cId, orderLineItemId)
 
 def validCRun(cRun, cLoad):
@@ -45,13 +45,13 @@ def validCRun(cRun, cLoad):
 
 def makeForRun(loadC):
     """Create random NURand constants for running TPC-C. TPC-C 2.1.6.1. (page 20) specifies the valid range for these constants."""
-    cRun = rand.number(0, 255)
+    cRun = random.randint(0, 255)
     while validCRun(cRun, loadC.cLast) == False:
-        cRun = rand.number(0, 255)
+        cRun = random.randint(0, 255)
     assert validCRun(cRun, loadC.cLast)
 
-    cId = rand.number(0, 1023)
-    orderLineItemId = rand.number(0, 8191)
+    cId = random.randint(0, 1023)
+    orderLineItemId = random.randint(0, 8191)
     return NURandC(cRun, cId, orderLineItemId)
 
 class NURandC:
