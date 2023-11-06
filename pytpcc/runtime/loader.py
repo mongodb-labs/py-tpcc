@@ -73,7 +73,7 @@ class Loader:
     ## ==============================================
     def loadItems(self):
         ## Select 10% of the rows to be marked "original"
-        originalRows = rand.selectUniqueIds(self.scaleParameters.items / 10, 1, self.scaleParameters.items)
+        originalRows = rand.selectUniqueIds(self.scaleParameters.items // 10, 1, self.scaleParameters.items)
 
         ## Load all of the items
         tuples = [ ]
@@ -112,7 +112,7 @@ class Loader:
             h_tuples = [ ]
 
             ## Select 10% of the customers to have bad credit
-            selectedRows = rand.selectUniqueIds(self.scaleParameters.customersPerDistrict / 10, 1, self.scaleParameters.customersPerDistrict)
+            selectedRows = rand.selectUniqueIds(self.scaleParameters.customersPerDistrict // 10, 1, self.scaleParameters.customersPerDistrict)
 
             ## TPC-C 4.3.3.1. says that o_c_id should be a permutation of [1, 3000]. But since it
             ## is a c_id field, it seems to make sense to have it be a permutation of the
@@ -160,7 +160,7 @@ class Loader:
 
         ## Select 10% of the stock to be marked "original"
         s_tuples = [ ]
-        selectedRows = rand.selectUniqueIds(self.scaleParameters.items / 10, 1, self.scaleParameters.items)
+        selectedRows = rand.selectUniqueIds(self.scaleParameters.items // 10, 1, self.scaleParameters.items)
         total_tuples = 0
         for i_id in range(1, self.scaleParameters.items+1):
             original = (i_id in selectedRows)

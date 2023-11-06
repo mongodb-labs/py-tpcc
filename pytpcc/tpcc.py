@@ -35,7 +35,7 @@ import argparse
 import glob
 import time
 import multiprocessing
-from ConfigParser import SafeConfigParser
+from configparser import ConfigParser
 from pprint import pprint, pformat
 
 from util import results, scaleparameters
@@ -90,6 +90,10 @@ def startLoading(driverClass, scaleParameters, args, config):
     ## FOR
 
     loader_results = []
+    try:
+        del args['config']
+    except KeyError:
+        print()
     for i in range(args['clients']):
         r = pool.apply_async(loaderFunc, (driverClass, scaleParameters, args, config, w_ids[i]))
         loader_results.append(r)
@@ -122,7 +126,7 @@ def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
         driver.loadFinish()
     except KeyboardInterrupt:
         return -1
-    except (Exception, AssertionError), ex:
+    except (Exception, AssertionError) as ex:
         logging.warn("Failed to load data: %s", ex)
         raise
 
@@ -135,7 +139,10 @@ def startExecution(driverClass, scaleParameters, args, config):
     logging.debug("Creating client pool with %d processes", args['clients'])
     pool = multiprocessing.Pool(args['clients'])
     debug = logging.getLogger().isEnabledFor(logging.DEBUG)
-
+    try:
+        del args['config']
+    except KeyError:
+        print()
     worker_results = []
     for _ in range(args['clients']):
         r = pool.apply_async(executorFunc, (driverClass, scaleParameters, args, config, debug,))
@@ -184,7 +191,7 @@ if __name__ == '__main__':
     aparser = argparse.ArgumentParser(description='Python implementation of the TPC-C Benchmark')
     aparser.add_argument('system', choices=getDrivers(),
                          help='Target system driver')
-    aparser.add_argument('--config', type=file,
+    aparser.add_argument('--config', type=open,
                          help='Path to driver configuration file')
     aparser.add_argument('--reset', action='store_true',
                          help='Instruct the driver to reset the contents of the database')
@@ -221,14 +228,14 @@ if __name__ == '__main__':
     assert driver != None, "Failed to create '%s' driver" % args['system']
     if args['print_config']:
         config = driver.makeDefaultConfig()
-        print driver.formatConfig(config)
-        print
+        print(driver.formatConfig(config))
+        print()
         sys.exit(0)
 
     ## Load Configuration file
     if args['config']:
         logging.debug("Loading configuration file '%s'", args['config'])
-        cparser = SafeConfigParser()
+        cparser = ConfigParser()
         cparser.read(os.path.realpath(args['config'].name))
         config = dict(cparser.items(args['system']))
     else:
