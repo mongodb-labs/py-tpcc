@@ -11,3 +11,7 @@ denormalize          = True
 retry_writes         = True
 # user                 = username
 # passwd               = passwd
+ssl                  = False
+ssl_certfile         = client.pem
+ssl_ca_certs         = ca.pem
+ssl_pem_passphrase   = passphrase
