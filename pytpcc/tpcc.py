@@ -35,9 +35,9 @@ import argparse
 import glob
 import time
 import multiprocessing
+import subprocess
 from configparser import ConfigParser
 from pprint import pprint, pformat
-from subprocess import call
 
 from util import results, scaleparameters
 from runtime import executor, loader
@@ -62,7 +62,9 @@ NOTIFY_PHASE_END_PATH = '/data/workdir/src/flamegraph/notify_phase_start.py'
 ## ==============================================
 def noftifyDsiOfPhaseStart(phasename):
     if os.path.isfile(NOTIFY_PHASE_START_PATH):
-        call(["python3", NOTIFY_PHASE_START_PATH, phasename])
+        output = subprocess.run(["python3", NOTIFY_PHASE_START_PATH, phasename], capture_output=True)
+        if output.returncode != 0:
+            raise RuntimeError("Failed to notify DSI of phase starting:", output)
 ## DEF
 
 ## ==============================================
@@ -70,7 +72,9 @@ def noftifyDsiOfPhaseStart(phasename):
 ## ==============================================
 def noftifyDsiOfPhaseEnd(phasename):
     if os.path.isfile(NOTIFY_PHASE_END_PATH):
-        call(["python3", NOTIFY_PHASE_END_PATH, phasename])
+        output = subprocess.run(["python3", NOTIFY_PHASE_END_PATH, phasename], capture_output=True)
+        if output.returncode != 0:
+            raise RuntimeError("Failed to notify DSI of phase starting:", output)
 ## DEF
 
 ## ==============================================
