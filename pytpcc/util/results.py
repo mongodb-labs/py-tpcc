@@ -250,5 +250,5 @@ class Results:
         if driver:
             driver.save_result(result_doc)
         print(result_doc)
-        return ret.encode('ascii', "ignore")
+        return ret
 ## CLASS
