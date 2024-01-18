@@ -35,6 +35,7 @@ import argparse
 import glob
 import time
 import multiprocessing
+import subprocess
 from configparser import ConfigParser
 from pprint import pprint, pformat
 
@@ -53,6 +54,28 @@ console.setFormatter(logging.Formatter(
     '%(asctime)s [%(funcName)s:%(lineno)03d] %(levelname)-5s: %(message)s'))
 logging.getLogger('').addHandler(console)
 
+NOTIFY_PHASE_START_PATH = '/data/workdir/src/flamegraph/notify_phase_start.py'
+NOTIFY_PHASE_END_PATH = '/data/workdir/src/flamegraph/notify_phase_start.py'
+
+## ==============================================
+## noftifyDsiOfPhaseStart
+## ==============================================
+def noftifyDsiOfPhaseStart(phasename):
+    if os.path.isfile(NOTIFY_PHASE_START_PATH):
+        output = subprocess.run(["python3", NOTIFY_PHASE_START_PATH, phasename], capture_output=True)
+        if output.returncode != 0:
+            raise RuntimeError("Failed to notify DSI of phase starting:", output)
+## DEF
+
+## ==============================================
+## noftifyDsiOfPhaseStart
+## ==============================================
+def noftifyDsiOfPhaseEnd(phasename):
+    if os.path.isfile(NOTIFY_PHASE_END_PATH):
+        output = subprocess.run(["python3", NOTIFY_PHASE_END_PATH, phasename], capture_output=True)
+        if output.returncode != 0:
+            raise RuntimeError("Failed to notify DSI of phase starting:", output)
+## DEF
 
 ## ==============================================
 ## createDriverClass
@@ -260,6 +283,7 @@ if __name__ == '__main__':
     load_time = None
     if not args['no_load']:
         logging.info("Loading TPC-C benchmark data using %s", (driver))
+        noftifyDsiOfPhaseStart("TPC-C_load")
         load_start = time.time()
         if args['clients'] == 1:
             l = loader.Loader(
@@ -274,10 +298,12 @@ if __name__ == '__main__':
         else:
             startLoading(driverClass, scaleParameters, args, config)
         load_time = time.time() - load_start
+        noftifyDsiOfPhaseEnd("TPC-C_load")
     ## IF
 
     ## WORKLOAD DRIVER!!!
     if not args['no_execute']:
+        noftifyDsiOfPhaseStart("TPC-C_workload")
         if args['clients'] == 1:
             e = executor.Executor(driver, scaleParameters, stop_on_error=args['stop_on_error'])
             driver.executeStart()
@@ -289,6 +315,7 @@ if __name__ == '__main__':
         logging.info("Final Results")
         logging.info("Threads: %d", args['clients'])
         logging.info(results.show(load_time, driver, args['clients']))
+        noftifyDsiOfPhaseEnd("TPC-C_workload")
     ## IF
 
 ## MAIN
