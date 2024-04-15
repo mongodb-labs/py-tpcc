@@ -192,15 +192,19 @@ TABLE_INDEXES = {
 ## ==============================================
 class MongodbDriver(AbstractDriver):
     DEFAULT_CONFIG = {
-        "uri":              ("The mongodb connection string or URI", "mongodb://localhost:27017"),
-        "name":             ("Database name", "tpcc"),
-        "denormalize":      ("If true, data will be denormalized using MongoDB schema design best practices", True),
-        "notransactions":   ("If true, transactions will not be used (benchmarking only)", False),
-        "findandmodify":    ("If true, all things to update will be fetched via findAndModify", True),
-        "secondary_reads":  ("If true, we will allow secondary reads", True),
-        "retry_writes":     ("If true, we will enable retryable writes", True),
+        "uri":                 ("The mongodb connection string or URI", "mongodb://localhost:27017"),
+        "name":                ("Database name", "tpcc"),
+        "denormalize":         ("If true, data will be denormalized using MongoDB schema design best practices", True),
+        "notransactions":      ("If true, transactions will not be used (benchmarking only)", False),
+        "findandmodify":       ("If true, all things to update will be fetched via findAndModify", True),
+        "secondary_reads":     ("If true, we will allow secondary reads", True),
+        "retry_writes":        ("If true, we will enable retryable writes", True),
         "causal_consistency":  ("If true, we will perform causal reads ", True),
-        "shards":          ("If >1 then sharded", "1")
+        "shards":              ("If >1 then sharded", "1"),
+        "ssl":                 ("If true, PyMongo will be configured to connect to the server using TLS", False),
+        "ssl_certfile":        ("The path to a client certificate", ""),
+        "ssl_ca_certs":        ("The path to a CA file", ""),
+        "ssl_pem_passphrase":  ("The password or passphrase to decrypt encrypted private keys", "")
     }
     DENORMALIZED_TABLES = [
         constants.TABLENAME_ORDERS,
@@ -232,6 +236,10 @@ class MongodbDriver(AbstractDriver):
         self.result_doc = {}
         self.warehouses = 0
         self.shards = 1
+        self.ssl = False
+        self.ssl_certfile = None
+        self.ssl_ca_certs = None
+        self.ssl_pem_passphrase = None
 
         ## Create member mapping to collections
         for name in constants.ALL_TABLES:
@@ -268,6 +276,14 @@ class MongodbDriver(AbstractDriver):
         self.secondary_reads = config['secondary_reads'] == 'True'
         if self.secondary_reads:
             self.read_preference = "nearest"
+        self.ssl = config['ssl'] == 'True'
+        if self.ssl:
+            if config['ssl_certfile'] != "":
+                self.ssl_certfile = config['ssl_certfile']
+            if config['ssl_ca_certs'] != "":
+                self.ssl_ca_certs = config['ssl_ca_certs']
+            if config['ssl_pem_passphrase'] != "":
+                self.ssl_pem_passphrase = config['ssl_pem_passphrase']
 
         if 'write_concern' in config and config['write_concern'] and config['write_concern'] != '1':
             # only expecting string 'majority' as an alternative to w:1
@@ -298,6 +314,10 @@ class MongodbDriver(AbstractDriver):
         display_uri = uri[0:pindex]+usersecret+uri[pindex:]
 
         self.client = pymongo.MongoClient(real_uri,
+                                          ssl=self.ssl,
+                                          ssl_certfile=self.ssl_certfile,
+                                          ssl_ca_certs=self.ssl_ca_certs,
+                                          ssl_pem_passphrase=self.ssl_pem_passphrase,
                                           retryWrites=self.retry_writes,
                                           readPreference=self.read_preference,
                                           readConcernLevel=self.read_concern)
