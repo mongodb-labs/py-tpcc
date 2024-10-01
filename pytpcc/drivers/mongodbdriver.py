@@ -416,7 +416,7 @@ class MongodbDriver(AbstractDriver):
     def loadFinishDistrict(self, w_id, d_id):
         if self.denormalize:
             logging.debug("Pushing %d denormalized ORDERS records for WAREHOUSE %d DISTRICT %d into MongoDB", len(self.w_orders), w_id, d_id)
-            self.database[constants.TABLENAME_ORDERS].insert(self.w_orders.values())
+            self.database[constants.TABLENAME_ORDERS].insert_many(self.w_orders.values())
             self.w_orders.clear()
         ## IF
 
