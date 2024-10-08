@@ -39,6 +39,10 @@ from pprint import pformat
 from time import sleep
 import pymongo
 
+# Import TransactionOptions from pymongo.client_session or
+# pymongo.synchronous.client_session depending on the version of pymongo
+from pymongo.client_session import TransactionOptions
+
 import constants
 from .abstractdriver import AbstractDriver
 
@@ -1108,7 +1112,7 @@ class MongodbDriver(AbstractDriver):
     # Should we retry txns within the same session or start a new one?
     def run_transaction_with_retries(self, txn_callback, name, params):
         txn_retry_counter = 0
-        to = pymongo.client_session.TransactionOptions(
+        to = TransactionOptions(
             read_concern=None,
             #read_concern=pymongo.read_concern.ReadConcern("snapshot"),
             write_concern=self.write_concern,
