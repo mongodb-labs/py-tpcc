@@ -76,7 +76,8 @@ class Executor:
                 batch_result.abortTransaction(batch_txn_id)
                 if self.stop_on_error: raise
                 continue
-
+            
+            # This will happen on all failing 1% of the transactions
             if val is None:
                 global_result.abortTransaction(global_txn_id, retries)
                 batch_result.abortTransaction(batch_txn_id, retries)

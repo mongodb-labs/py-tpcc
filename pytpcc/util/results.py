@@ -211,8 +211,8 @@ class Results:
         lat = sorted(self.latencies.get('NEW_ORDER',[0]))
         samples = len(lat)
         ret += f % ("TOTAL", str(total_cnt), u"%12.3f" % total_time, "", "", "", "", "", "", "", "", "", "")
-        if driver != None:
-            # print(driver)
+        # Only MongoDB Driver return all these extra data
+        if driver == "MongodbDriver":
             result_doc['tpmc'] = txn_new_order*60/duration
             result_doc['denorm'] = driver.denormalize
             result_doc['duration'] = duration
@@ -247,8 +247,7 @@ class Results:
                 u"%6.2f" % (1000.0*lat[-1]),
                 str(driver.write_concern), ('false', 'true')[driver.causal_consistency],
                 ('false', 'true')[driver.all_in_one_txn], ('false', 'true')[driver.retry_writes],total_cnt,total_aborts)
-        if driver:
             driver.save_result(result_doc)
-        print(result_doc)
+            print(result_doc)
         return ret
 ## CLASS
