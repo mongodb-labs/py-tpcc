@@ -211,8 +211,8 @@ class Results:
         lat = sorted(self.latencies.get('NEW_ORDER',[0]))
         samples = len(lat)
         ret += f % ("TOTAL", str(total_cnt), u"%12.3f" % total_time, "", "", "", "", "", "", "", "", "", "")
-        # Only MongoDB Driver return all these extra data
-        if driver == "MongodbDriver":
+        # Only MongoDB Driver returns extra configuration data not available on other drivers
+        if driver.__class__.__name__ == "MongodbDriver":
             result_doc['tpmc'] = txn_new_order*60/duration
             result_doc['denorm'] = driver.denormalize
             result_doc['duration'] = duration
@@ -248,6 +248,20 @@ class Results:
                 str(driver.write_concern), ('false', 'true')[driver.causal_consistency],
                 ('false', 'true')[driver.all_in_one_txn], ('false', 'true')[driver.retry_writes],total_cnt,total_aborts)
             driver.save_result(result_doc)
+            print(result_doc)
+        # PostgreSQL driver returns a shorter version of the summary without extra configuration data
+        elif driver.__class__.__name__ == "PostgresqlDriver":
+            ret += "\n%s TpmC for %s thr %d WH: %d %d total %d durSec, %d retries %s%% p50 %s p75 %s p90 %s p95 %s p99 %s max %s %d %d" % (
+                time.strftime("%Y-%m-%d %H:%M:%S"),
+                threads,
+                driver.getNumberWH(),
+                round(txn_new_order*60/duration), txn_new_order, duration,
+                total_retries, str(100.0*total_retries/total_cnt)[:5],
+                u"%6.2f" % (1000* lat[int(samples/2)]), u"%6.2f" % (1000*lat[int(samples/100.0*75)]),
+                u"%6.2f" % (1000*lat[int(samples/100.0*90)]), u"%6.2f" % (1000*lat[int(samples/100.0*95)]),
+                u"%6.2f" % (1000*lat[int(samples/100.0*99)]),
+                u"%6.2f" % (1000.0*lat[-1]),
+                total_cnt,total_aborts)
             print(result_doc)
         return ret
 ## CLASS

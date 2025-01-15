@@ -10,8 +10,6 @@ from time import sleep
 import constants
 from .abstractdriver import AbstractDriver
 
-retries = 0
-
 TXN_QUERIES = {
     "DELIVERY": {
         "getNewOrder": "SELECT NO_O_ID FROM NEW_ORDER WHERE NO_D_ID = %s AND NO_W_ID = %s AND NO_O_ID > -1 LIMIT 1", #
@@ -471,6 +469,13 @@ class PostgresqlDriver(AbstractDriver):
             except:
                 self.conn.rollback()  # Rollback the transaction on error
                 retries += 1
-                sleep(retries * .1)        
+                sleep(retries * .1)
+
+    ## ----------------------------------------------
+    ## getNumberWH
+    ## ----------------------------------------------    
+    def getNumberWH(self):
+        self.cursor.execute("SELECT max(w_id) FROM WAREHOUSE")
+        return self.cursor.fetchone()[0]
         
 ## CLASS
