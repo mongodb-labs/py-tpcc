@@ -119,11 +119,11 @@ class PostgresqlDriver(AbstractDriver):
 
     def loadStart(self):
         """Disable constraints before data load
-        and check the default isolation level"""
+        and check default isolation level"""
         self.cursor.execute("SHOW TRANSACTION ISOLATION LEVEL")
         isolation_level = self.cursor.fetchone()[0]
-        if isolation_level != "repeatable read":
-            logging.warn("In order to avoid duplicate key errors, the isolation level should be 'repeatable read'")
+        if isolation_level == "read committed":
+            logging.warn("Read Committed isolation level could cause duplicate key errors, to avoid them use 'repeatable read'")
 
         self.cursor.execute("set session_replication_role to replica")
 
@@ -133,14 +133,13 @@ class PostgresqlDriver(AbstractDriver):
         placeholders = ', '.join(['%s'] * len(tuples[0]))
         sql = f"INSERT INTO {tableName} VALUES ({placeholders})"
         self.cursor.executemany(sql, tuples)
-        logging.info("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
+        logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
         return
 
     def loadFinish(self):
         self.cursor.execute("set session_replication_role to default;")
-        logging.info("Committing changes to database")
+        logging.debug("Committing changes to database")
         self.conn.commit()
-
 
     ## ----------------------------------------------
     ## doDelivery
