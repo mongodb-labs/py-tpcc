@@ -48,6 +48,7 @@ class Executor:
         self.driver = driver
         self.scaleParameters = scaleParameters
         self.stop_on_error = stop_on_error
+        self.ready = False
     ## DEF
 
     def execute(self, duration):
@@ -107,6 +108,13 @@ class Executor:
         x = rand.number(1, 100)
         params = None
         txn = None
+        
+        #========================================================================================
+        # Use this to run a specific tpcc test. Run x=100 for new order before running other tests
+        #x = 100 # new Order
+        #x = 3 #do payment
+        #========================================================================================
+
         if x <= 4: ## 4%
             txn, params = (constants.TransactionTypes.STOCK_LEVEL, self.generateStockLevelParams())
         elif x <= 4 + 4: ## 4%

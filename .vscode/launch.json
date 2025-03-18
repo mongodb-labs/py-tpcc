@@ -1,0 +1,73 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug MongoDB driver",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "tpcc.py",
+            "console": "integratedTerminal",
+            //"args": "${command:pickArgs}"
+            "args": "--reset --clients=1 --duration=1 --scalefactor=2000 --warehouses=1 --config=mongodb.config mongodb --stop-on-error",
+            "cwd": "${workspaceFolder}/pytpcc/",
+            "python": "/home/linuka/python_envs/py-tpcc-env/bin/python"
+        },
+        {
+            "name": "Debug Postgresql JSONB driver",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "tpcc.py",
+            "console": "integratedTerminal",
+            "args": "--reset --clients=1 --duration=1 --scalefactor=2000 --warehouses=1 --ddl tpcc_jsonb.sql --config=postgresqljsonb.config postgresqljsonb",
+            "cwd": "${workspaceFolder}/pytpcc/",
+            "python": "/home/linuka/python_envs/py-tpcc-env/bin/python"
+        },
+        {
+            // To debug doDelivery, doOrderStatus, doPayment, doStockLevel, getNumberWH
+            "name": "Debug Postgresql JSONB driver No RESET No LOAD",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "tpcc.py",
+            "console": "integratedTerminal",
+            "args": "--no-load --clients=1 --duration=1 --scalefactor=2000 --warehouses=1 --ddl tpcc_jsonb.sql --config=postgresqljsonb.config postgresqljsonb",
+            "cwd": "${workspaceFolder}/pytpcc/",
+            "python": "/home/linuka/python_envs/py-tpcc-env/bin/python"
+        },
+        {
+            "name": "Debug Postgresql JSONB driver Perf",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "tpcc.py",
+            "console": "integratedTerminal",
+            "args": "--reset --clients=1 --duration=1 --scalefactor=20 --warehouses=1 --ddl tpcc_jsonb.sql --config=postgresqljsonb.config postgresqljsonb",
+            "cwd": "${workspaceFolder}/pytpcc/",
+            "python": "/home/linuka/python_envs/py-tpcc-env/bin/python"
+        },
+        {
+            "name": "Debug Postgresql driver",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "tpcc.py",
+            "console": "integratedTerminal",
+            //"args": "${command:pickArgs}"
+            "args": "--reset --clients=1 --duration=1 --scalefactor=2000 --warehouses=1 --config=postgresql.config postgresql",
+            "cwd": "${workspaceFolder}/pytpcc/",
+            "python": "/home/linuka/python_envs/py-tpcc-env/bin/python"
+        },
+        {
+            "name": "Debug Postgresql driver No RESET No LOAD",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "tpcc.py",
+            "console": "integratedTerminal",
+            //"args": "${command:pickArgs}"
+            "args": "--no-load --clients=1 --duration=1 --scalefactor=2000 --warehouses=1 --config=postgresql.config postgresql",
+            "cwd": "${workspaceFolder}/pytpcc/",
+            "python": "/home/linuka/python_envs/py-tpcc-env/bin/python"
+        }
+
+    ]
+}

@@ -250,7 +250,7 @@ class Results:
             driver.save_result(result_doc)
             print(result_doc)
         # PostgreSQL driver returns a shorter version of the summary without extra configuration data
-        elif driver.__class__.__name__ == "PostgresqlDriver":
+        elif driver.__class__.__name__ == "PostgresqlDriver" or driver.__class__.__name__ == "PostgresqljsonbDriver":
             ret += "\n%s TpmC for %s thr %d WH: %d %d total %d durSec, %d retries %s%% p50 %s p75 %s p90 %s p95 %s p99 %s max %s %d %d" % (
                 time.strftime("%Y-%m-%d %H:%M:%S"),
                 threads,
