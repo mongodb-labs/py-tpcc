@@ -74,7 +74,7 @@ password             = <ADD_PASSWORD_HERE>
 ~/py-tpcc/pytpcc$ python ./tpcc.py --reset --clients=1 --duration=1 --warehouses=1 --ddl tpcc_jsonb.sql --config=postgresqljsonb.config postgresqljsonb --stop-on-error
 ```
 
-5. Run the PostgreSQL JSONB driver tests with no load phase to use the data that is already loaded in the Postgres db.
+5. Run the PostgreSQL JSONB driver tests with no load phase to use the data that is already loaded in the Postgres database.
 
 ```bash
 ~/py-tpcc/pytpcc$ python ./tpcc.py --no-load --clients=1 --duration=1 --warehouses=1 --ddl tpcc_jsonb.sql --config=postgresqljsonb.config postgresqljsonb --stop-on-error
