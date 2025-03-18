@@ -665,8 +665,8 @@ class PostgresqljsonbDriver(AbstractDriver):
                     c_id = customer[0]
                 assert len(customer) > 0
                 c_balance = float(customer[14]) - h_amount #customer[14] is C_BALANCE which is float
-                c_ytd_payment = float(customer[15]) + h_amount
-                c_payment_cnt = customer[16] + 1
+                c_ytd_payment = (float(customer[15]) if customer[15] is not None else 0.0) + h_amount
+                c_payment_cnt = (customer[16] if customer[16] is not None else 0) + 1
                 c_data = customer[17]
 
                 self.cursor.execute(q["getWarehouse"], [w_id])
