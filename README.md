@@ -16,3 +16,76 @@ The structure of the repo is:
 All the tests were run using [MongoDB Atlas](https://www.mongodb.com/cloud/atlas?jmp=VLDB2019).
 Use code `VLDB2019` to get $150 credit to get started with MongoDB Atlas.
 
+
+## Postgres JSONB Driver
+
+This branch contains a Postgres JSONB Driver.
+
+Steps to run the PostgreSQL JSONB Driver
+
+1. Start Postgres.
+
+```bash
+sudo systemctl start postgresql
+```
+
+2. Create ana activate a python env.
+
+```bash
+mkdir ~/python_envs
+cd ~/python_envs
+~/python_envs$ python -m venv py-tpcc-env
+source ~/python_envs/py-tpcc-env/bin/activate
+```
+
+3. Print your config.
+
+```bash
+cd ~/py-tpcc/pytpcc
+~/py-tpcc/pytpcc$ python ./tpcc.py --print-config postgresqljsonb > postgresqljsonb.config
+```
+
+3. Edit the configuraiton for Postgres in the postgresqljsonb.config. Add a password.
+
+```bash
+# PostgresqljsonbDriver Configuration File
+# Created 2025-03-18 23:00:45.340852
+[postgresqljsonb]
+
+# The name of the PostgreSQL database
+database             = tpcc
+
+# The host address of the PostgreSQL server
+host                 = localhost
+
+# The port number of the PostgreSQL server
+port                 = 5432
+
+# The username to connect to the PostgreSQL database
+user                 = postgres
+
+# The password to connect to the PostgreSQL database
+password             = <ADD_PASSWORD_HERE>
+```
+
+4. Run the PostgreSQL JSONB driver tests with resetting the database.
+
+```bash
+~/py-tpcc/pytpcc$ python ./tpcc.py --reset --clients=1 --duration=1 --warehouses=1 --ddl tpcc_jsonb.sql --config=postgresqljsonb.config postgresqljsonb --stop-on-error
+```
+
+5. Run the PostgreSQL JSONB driver tests with no load phase to use the data that is already loaded in the Postgres db.
+
+```bash
+~/py-tpcc/pytpcc$ python ./tpcc.py --no-load --clients=1 --duration=1 --warehouses=1 --ddl tpcc_jsonb.sql --config=postgresqljsonb.config postgresqljsonb --stop-on-error
+```
+
+6. If you need to connect to Postgres and check the database size
+
+```bash
+psql -U postgres # and type the password
+postgres=\# \l+
+
+# For any SQL command first use the database
+use tpcc
+```
