@@ -87,5 +87,5 @@ psql -U postgres # and type the password
 postgres=# \l+
 
 # For any SQL command first use the database
-use tpcc
+\c tpcc;
 ```
