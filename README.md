@@ -84,7 +84,7 @@ password             = <ADD_PASSWORD_HERE>
 
 ```bash
 psql -U postgres # and type the password
-postgres=\# \l+
+postgres=# \l+
 
 # For any SQL command first use the database
 use tpcc
