@@ -32,7 +32,7 @@
             "request": "launch",
             "program": "tpcc.py",
             "console": "integratedTerminal",
-            "args": "--no-load --clients=1 --duration=1 --scalefactor=2000 --warehouses=1 --ddl tpcc_jsonb.sql --config=postgresqljsonb.config postgresqljsonb",
+            "args": "--no-load --clients=4 --duration=10 --warehouses=1 --ddl tpcc_jsonb.sql --config=postgresqljsonb.config postgresqljsonb",
             "cwd": "${workspaceFolder}/pytpcc/",
             "python": "/home/linuka/python_envs/py-tpcc-env/bin/python"
         },
