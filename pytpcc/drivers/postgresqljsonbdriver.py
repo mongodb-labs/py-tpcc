@@ -44,7 +44,7 @@ TXN_QUERIES = {
         # "createOrder": "INSERT INTO ORDERS (O_ID, O_D_ID, O_W_ID, O_C_ID, O_ENTRY_D, O_CARRIER_ID, O_OL_CNT, O_ALL_LOCAL) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::integer)", # d_next_o_id, d_id, w_id, c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local
         "createOrder": "INSERT INTO ORDERS (data) VALUES (jsonb_build_object('O_ID', %s, 'O_D_ID', %s, 'O_W_ID', %s, 'O_C_ID', %s, 'O_ENTRY_D', %s, 'O_CARRIER_ID', %s, 'O_OL_CNT', %s, 'O_ALL_LOCAL', %s::integer))",
         # "createNewOrder": "INSERT INTO NEW_ORDER (NO_O_ID, NO_D_ID, NO_W_ID) VALUES (%s, %s, %s)", # o_id, d_id, w_id
-        "createNewOrder": "INSERT INTO NEW_ORDER (data) VALUES (jsonb_build_object('NO_O_ID', %s::integer, 'NO_D_ID', %s::smallint, 'NO_W_ID', %s::smallint))",
+        "createNewOrder": "INSERT INTO NEW_ORDER (data) VALUES (jsonb_build_object('NO_O_ID', %s::integer, 'NO_D_ID', %s::smallint, 'NO_W_ID', %s::smallint)) ON CONFLICT ((data->>'NO_W_ID'), (data->>'NO_D_ID'), (data->>'NO_O_ID')) DO NOTHING",
         # "getItemInfo": "SELECT I_PRICE, I_NAME, I_DATA FROM ITEM WHERE I_ID = %s", # ol_i_id
         "getItemInfo": "SELECT data->'I_PRICE', data->'I_NAME', data->'I_DATA' FROM ITEM WHERE (data->'I_ID')::integer = %s",
         # "getStockInfo": "SELECT S_QUANTITY, S_DATA, S_YTD, S_ORDER_CNT, S_REMOTE_CNT, S_DIST_{:02d} FROM STOCK WHERE S_I_ID = %s AND S_W_ID = %s", # d_id, ol_i_id, ol_supply_w_id
@@ -424,7 +424,10 @@ class PostgresqljsonbDriver(AbstractDriver):
                     no_o_id = newOrder[0]
                     
                     self.cursor.execute(q["getCId"], [no_o_id, d_id, w_id])
-                    c_id = self.cursor.fetchone()[0]
+                    result = self.cursor.fetchone()
+                    if result is None:
+                        continue
+                    c_id = result[0]
                     
                     self.cursor.execute(q["sumOLAmount"], [no_o_id, d_id, w_id])
                     ol_total = self.cursor.fetchone()[0]

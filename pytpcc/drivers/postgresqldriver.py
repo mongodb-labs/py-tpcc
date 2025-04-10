@@ -4,6 +4,7 @@ from __future__ import with_statement
 
 import psycopg2
 import logging
+import traceback
 from pprint import pformat
 from time import sleep
 
@@ -317,7 +318,9 @@ class PostgresqlDriver(AbstractDriver):
                 ## Pack up values the client is missing (see TPC-C 2.4.3.5)
                 misc = [ (w_tax, d_tax, d_next_o_id, total) ]
                 return ([ customer_info, misc, item_data ], retries)
-            except:
+            except Exception as e:
+                print("An error occurred:")
+                traceback.print_exc()
                 self.conn.rollback()  # Rollback the transaction on error
                 retries += 1
                 sleep(retries * .1)
