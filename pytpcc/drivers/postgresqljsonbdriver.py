@@ -424,7 +424,10 @@ class PostgresqljsonbDriver(AbstractDriver):
                     no_o_id = newOrder[0]
                     
                     self.cursor.execute(q["getCId"], [no_o_id, d_id, w_id])
-                    c_id = self.cursor.fetchone()[0]
+                    result_getcid = self.cursor.fetchone()
+                    if result_getcid is None:
+                        continue
+                    c_id = result_getcid[0]
                     
                     self.cursor.execute(q["sumOLAmount"], [no_o_id, d_id, w_id])
                     ol_total = self.cursor.fetchone()[0]
