@@ -110,9 +110,12 @@ class Executor:
         txn = None
         
         #========================================================================================
-        # Use this to run a specific tpcc test. Run x=100 for new order before running other tests
-        #x = 100 # new Order
-        #x = 3 #do payment
+        # To debug use this to run a specific tpcc test. Run x=100 for new order before running other tests
+        #x = 100 # new order
+        #x = 44  # payment
+        #x = 9   # order status
+        #x = 7   # delivery
+        #x = 3   # stock level
         #========================================================================================
 
         if x <= 4: ## 4%
