@@ -18,86 +18,86 @@ from .abstractdriver import AbstractDriver
 TXN_QUERIES = {
     "DELIVERY": {
         # "getNewOrder": "SELECT NO_O_ID FROM NEW_ORDER WHERE NO_D_ID = %s AND NO_W_ID = %s AND NO_O_ID > -1 LIMIT 1", #
-        "getNewOrder": "SELECT (data->'NO_O_ID')::integer FROM NEW_ORDER WHERE (data->'NO_D_ID')::smallint = %s AND (data->'NO_W_ID')::smallint = %s AND (data->'NO_O_ID')::integer > -1 LIMIT 1",
+        "getNewOrder": "SELECT (data->>'NO_O_ID')::INTEGER FROM NEW_ORDER WHERE (data->>'NO_D_ID')::SMALLINT = %s AND (data->>'NO_W_ID')::SMALLINT = %s AND (data->>'NO_O_ID')::INTEGER > -1 LIMIT 1",
         # "deleteNewOrder": "DELETE FROM NEW_ORDER WHERE NO_D_ID = %s AND NO_W_ID = %s AND NO_O_ID = %s", # d_id, w_id, no_o_id
-        "deleteNewOrder": "DELETE FROM NEW_ORDER WHERE (data->'NO_D_ID')::smallint = %s AND (data->'NO_W_ID')::smallint = %s AND (data->'NO_O_ID')::integer = %s",
+        "deleteNewOrder": "DELETE FROM NEW_ORDER WHERE (data->>'NO_D_ID')::SMALLINT = %s AND (data->>'NO_W_ID')::SMALLINT = %s AND (data->>'NO_O_ID')::INTEGER = %s",
         # "getCId": "SELECT O_C_ID FROM ORDERS WHERE O_ID = %s AND O_D_ID = %s AND O_W_ID = %s", # no_o_id, d_id, w_id
-        "getCId": "SELECT (data->'O_C_ID')::integer FROM ORDERS WHERE (data->'O_ID')::integer = %s AND (data->'O_D_ID')::smallint = %s AND (data->'O_W_ID')::smallint = %s",
+        "getCId": "SELECT (data->>'O_C_ID')::INTEGER FROM ORDERS WHERE (data->>'O_ID')::INTEGER = %s AND (data->>'O_D_ID')::SMALLINT = %s AND (data->>'O_W_ID')::SMALLINT = %s",
         # "updateOrders": "UPDATE ORDERS SET O_CARRIER_ID = %s WHERE O_ID = %s AND O_D_ID = %s AND O_W_ID = %s", # o_carrier_id, no_o_id, d_id, w_id
-        "updateOrders": "UPDATE ORDERS SET data = jsonb_set(data, '{O_CARRIER_ID}', to_jsonb(%s::integer), true) WHERE (data->'O_ID')::integer = %s AND (data->'O_D_ID')::smallint = %s AND (data->'O_W_ID')::smallint = %s",
+        "updateOrders": "UPDATE ORDERS SET data = jsonb_set(data, '{O_CARRIER_ID}', to_jsonb(%s::INTEGER)) WHERE (data->>'O_ID')::INTEGER = %s AND (data->>'O_D_ID')::SMALLINT = %s AND (data->>'O_W_ID')::SMALLINT = %s",
         # "updateOrderLine": "UPDATE ORDER_LINE SET OL_DELIVERY_D = %s WHERE OL_O_ID = %s AND OL_D_ID = %s AND OL_W_ID = %s", # o_entry_d, no_o_id, d_id, w_id
-        "updateOrderLine": "UPDATE ORDER_LINE SET data = jsonb_set(data, '{OL_DELIVERY_D}', to_jsonb(%s::timestamp), true) WHERE (data->'OL_O_ID')::integer = %s AND (data->'OL_D_ID')::smallint = %s AND (data->'OL_W_ID')::smallint = %s",
+        "updateOrderLine": "UPDATE ORDER_LINE SET data = jsonb_set(data, '{OL_DELIVERY_D}', to_jsonb(%s::TIMESTAMP)) WHERE (data->>'OL_O_ID')::INTEGER = %s AND (data->>'OL_D_ID')::SMALLINT = %s AND (data->>'OL_W_ID')::SMALLINT = %s",
         # "sumOLAmount": "SELECT SUM(OL_AMOUNT) FROM ORDER_LINE WHERE OL_O_ID = %s AND OL_D_ID = %s AND OL_W_ID = %s", # no_o_id, d_id, w_id
-        "sumOLAmount": "SELECT SUM((data->'OL_AMOUNT')::numeric) FROM ORDER_LINE WHERE (data->'OL_O_ID')::integer = %s AND (data->'OL_D_ID')::smallint = %s AND (data->'OL_W_ID')::smallint = %s",
+        "sumOLAmount": "SELECT SUM((data->>'OL_AMOUNT')::FLOAT) FROM ORDER_LINE WHERE (data->>'OL_O_ID')::INTEGER = %s AND (data->>'OL_D_ID')::SMALLINT = %s AND (data->>'OL_W_ID')::SMALLINT = %s",
         # "updateCustomer": "UPDATE CUSTOMER SET C_BALANCE = C_BALANCE + %s WHERE C_ID = %s AND C_D_ID = %s AND C_W_ID = %s", # ol_total, c_id, d_id, w_id
-        "updateCustomer": "UPDATE CUSTOMER SET data = jsonb_set(data, '{C_BALANCE}', to_jsonb(((data->'C_BALANCE')::numeric + %s::numeric)), true) WHERE (data->'C_ID')::integer = %s AND (data->'C_D_ID')::smallint = %s AND (data->'C_W_ID')::smallint = %s",
+        "updateCustomer": "UPDATE CUSTOMER SET data = jsonb_set(data, '{C_BALANCE}', to_jsonb(((data->>'C_BALANCE')::FLOAT + %s::FLOAT))) WHERE (data->>'C_ID')::INTEGER = %s AND (data->>'C_D_ID')::SMALLINT = %s AND (data->>'C_W_ID')::SMALLINT = %s"
     },
     "NEW_ORDER": {
         # "getWarehouseTaxRate": "SELECT W_TAX FROM WAREHOUSE WHERE W_ID = %s", # w_id
-        "getWarehouseTaxRate": "SELECT (data->'W_TAX')::float FROM WAREHOUSE WHERE (data->'W_ID')::integer = %s",
+        "getWarehouseTaxRate": "SELECT (data->>'W_TAX')::FLOAT FROM WAREHOUSE WHERE (data->>'W_ID')::SMALLINT = %s",
         # "getDistrict": "SELECT D_TAX, D_NEXT_O_ID FROM DISTRICT WHERE D_ID = %s AND D_W_ID = %s", # d_id, w_id
-        "getDistrict": "SELECT (data->'D_TAX')::float, (data->'D_NEXT_O_ID')::integer FROM DISTRICT WHERE (data->'D_ID')::integer = %s AND (data->'D_W_ID')::integer = %s",
+        "getDistrict": "SELECT (data->>'D_TAX')::FLOAT, (data->>'D_NEXT_O_ID')::INTEGER FROM DISTRICT WHERE (data->>'D_ID')::SMALLINT = %s AND (data->>'D_W_ID')::SMALLINT = %s",
         # "incrementNextOrderId": "UPDATE DISTRICT SET D_NEXT_O_ID = %s WHERE D_ID = %s AND D_W_ID = %s", # d_next_o_id, d_id, w_id
-        "incrementNextOrderId": "UPDATE DISTRICT SET data = jsonb_set(data, '{D_NEXT_O_ID}', to_jsonb(%s::integer), true) WHERE (data->'D_ID')::smallint = %s AND (data->'D_W_ID')::smallint = %s",
+        "incrementNextOrderId": "UPDATE DISTRICT SET data = jsonb_set(data, '{D_NEXT_O_ID}', to_jsonb(%s::INTEGER)) WHERE (data->>'D_ID')::SMALLINT = %s AND (data->>'D_W_ID')::SMALLINT = %s",
         # "getCustomer": "SELECT C_DISCOUNT, C_LAST, C_CREDIT FROM CUSTOMER WHERE C_W_ID = %s AND C_D_ID = %s AND C_ID = %s", # w_id, d_id, c_id
-        "getCustomer": "SELECT (data->'C_DISCOUNT')::float, data->>'C_LAST', data->>'C_CREDIT' FROM CUSTOMER WHERE (data->'C_W_ID')::integer = %s AND (data->'C_D_ID')::integer = %s AND (data->'C_ID')::integer = %s",
+        "getCustomer": "SELECT (data->>'C_DISCOUNT')::FLOAT, data->>'C_LAST', data->>'C_CREDIT' FROM CUSTOMER WHERE (data->>'C_W_ID')::SMALLINT = %s AND (data->>'C_D_ID')::SMALLINT = %s AND (data->>'C_ID')::INTEGER = %s",
         # "createOrder": "INSERT INTO ORDERS (O_ID, O_D_ID, O_W_ID, O_C_ID, O_ENTRY_D, O_CARRIER_ID, O_OL_CNT, O_ALL_LOCAL) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::integer)", # d_next_o_id, d_id, w_id, c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local
-        "createOrder": "INSERT INTO ORDERS (data) VALUES (jsonb_build_object('O_ID', %s, 'O_D_ID', %s, 'O_W_ID', %s, 'O_C_ID', %s, 'O_ENTRY_D', %s, 'O_CARRIER_ID', %s, 'O_OL_CNT', %s, 'O_ALL_LOCAL', %s::integer))",
+        "createOrder": "INSERT INTO ORDERS (data) VALUES (jsonb_build_object('O_ID', %s::INTEGER, 'O_D_ID', %s::SMALLINT, 'O_W_ID', %s::SMALLINT, 'O_C_ID', %s::INTEGER, 'O_ENTRY_D', %s::TIMESTAMP, 'O_CARRIER_ID', to_jsonb(%s), 'O_OL_CNT', %s::INTEGER, 'O_ALL_LOCAL', %s::INTEGER))",
         # "createNewOrder": "INSERT INTO NEW_ORDER (NO_O_ID, NO_D_ID, NO_W_ID) VALUES (%s, %s, %s)", # o_id, d_id, w_id
-        "createNewOrder": "INSERT INTO NEW_ORDER (data) VALUES (jsonb_build_object('NO_O_ID', %s::integer, 'NO_D_ID', %s::smallint, 'NO_W_ID', %s::smallint)) ON CONFLICT ((data->>'NO_W_ID'), (data->>'NO_D_ID'), (data->>'NO_O_ID')) DO NOTHING",
+        "createNewOrder": "INSERT INTO NEW_ORDER (data) VALUES (jsonb_build_object('NO_O_ID', %s::INTEGER, 'NO_D_ID', %s::SMALLINT, 'NO_W_ID', %s::SMALLINT))",
         # "getItemInfo": "SELECT I_PRICE, I_NAME, I_DATA FROM ITEM WHERE I_ID = %s", # ol_i_id
-        "getItemInfo": "SELECT data->'I_PRICE', data->'I_NAME', data->'I_DATA' FROM ITEM WHERE (data->'I_ID')::integer = %s",
+        "getItemInfo": "SELECT (data->>'I_PRICE')::FLOAT, data->>'I_NAME', data->>'I_DATA' FROM ITEM WHERE (data->>'I_ID')::INTEGER = %s",
         # "getStockInfo": "SELECT S_QUANTITY, S_DATA, S_YTD, S_ORDER_CNT, S_REMOTE_CNT, S_DIST_{:02d} FROM STOCK WHERE S_I_ID = %s AND S_W_ID = %s", # d_id, ol_i_id, ol_supply_w_id
-        "getStockInfo": "SELECT (data->'S_QUANTITY')::integer, data->>'S_DATA', (data->'S_YTD')::integer, (data->'S_ORDER_CNT')::integer, (data->'S_REMOTE_CNT')::integer, data->>'S_DIST_{:02d}' FROM STOCK WHERE (data->'S_I_ID')::integer = %s AND (data->'S_W_ID')::smallint = %s",
+        "getStockInfo": "SELECT (data->>'S_QUANTITY')::INTEGER, data->>'S_DATA', (data->>'S_YTD')::INTEGER, (data->>'S_ORDER_CNT')::INTEGER, (data->>'S_REMOTE_CNT')::INTEGER, data->>'S_DIST_{:02d}' FROM STOCK WHERE (data->>'S_I_ID')::INTEGER = %s AND (data->>'S_W_ID')::SMALLINT = %s",
         #"updateStock": "UPDATE STOCK SET S_QUANTITY = %s, S_YTD = %s, S_ORDER_CNT = %s, S_REMOTE_CNT = %s WHERE S_I_ID = %s AND S_W_ID = %s", # s_quantity, s_order_cnt, s_remote_cnt, ol_i_id, ol_supply_w_id
-        "updateStock": "UPDATE STOCK SET data = jsonb_set(jsonb_set(jsonb_set(jsonb_set(data, '{S_QUANTITY}', to_jsonb(%s::integer), true), '{S_YTD}', to_jsonb(%s::integer), true), '{S_ORDER_CNT}', to_jsonb(%s::integer), true), '{S_REMOTE_CNT}', to_jsonb(%s::integer), true) WHERE (data->'S_I_ID')::integer = %s AND (data->'S_W_ID')::smallint = %s",
+        "updateStock": "UPDATE STOCK SET data = jsonb_set(jsonb_set(jsonb_set(jsonb_set(data, '{S_QUANTITY}', to_jsonb(%s::INTEGER)), '{S_YTD}', to_jsonb(%s::INTEGER)), '{S_ORDER_CNT}', to_jsonb(%s::INTEGER)), '{S_REMOTE_CNT}', to_jsonb(%s::INTEGER)) WHERE (data->>'S_I_ID')::INTEGER = %s AND (data->>'S_W_ID')::SMALLINT = %s",
         # "createOrderLine": "INSERT INTO ORDER_LINE (OL_O_ID, OL_D_ID, OL_W_ID, OL_NUMBER, OL_I_ID, OL_SUPPLY_W_ID, OL_DELIVERY_D, OL_QUANTITY, OL_AMOUNT, OL_DIST_INFO) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", # o_id, d_id, w_id, ol_number, ol_i_id, ol_supply_w_id, ol_quantity, ol_amount, ol_dist_info        
-        "createOrderLine": "INSERT INTO ORDER_LINE (data) VALUES (jsonb_build_object('OL_O_ID', %s::integer, 'OL_D_ID', %s::smallint, 'OL_W_ID', %s::smallint, 'OL_NUMBER', %s::integer, 'OL_I_ID', %s::integer, 'OL_SUPPLY_W_ID', %s::smallint, 'OL_DELIVERY_D', %s::timestamp, 'OL_QUANTITY', %s::integer, 'OL_AMOUNT', %s::float, 'OL_DIST_INFO', %s))",
+        "createOrderLine": "INSERT INTO ORDER_LINE (data) VALUES (jsonb_build_object('OL_O_ID', %s::INTEGER, 'OL_D_ID', %s::SMALLINT, 'OL_W_ID', %s::SMALLINT, 'OL_NUMBER', %s::INTEGER, 'OL_I_ID', %s::INTEGER, 'OL_SUPPLY_W_ID', %s::SMALLINT, 'OL_DELIVERY_D', to_jsonb(%s), 'OL_QUANTITY', %s::INTEGER, 'OL_AMOUNT', %s::FLOAT, 'OL_DIST_INFO', %s::TEXT))"
     },
     
     "ORDER_STATUS": {
         # "getCustomerByCustomerId": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = %s AND C_D_ID = %s AND C_ID = %s", # w_id, d_id, c_id
-        "getCustomerByCustomerId": "SELECT (data->'C_ID')::integer, data->>'C_FIRST', data->>'C_MIDDLE', data->>'C_LAST', (data->'C_BALANCE')::float FROM CUSTOMER WHERE (data->'C_W_ID')::smallint = %s AND (data->'C_D_ID')::smallint = %s AND (data->'C_ID')::integer = %s",
+        "getCustomerByCustomerId": "SELECT (data->>'C_ID')::INTEGER, data->>'C_FIRST', data->>'C_MIDDLE', data->>'C_LAST', (data->>'C_BALANCE')::FLOAT FROM CUSTOMER WHERE (data->>'C_W_ID')::SMALLINT = %s AND (data->>'C_D_ID')::SMALLINT = %s AND (data->>'C_ID')::INTEGER = %s",
         # "getCustomersByLastName": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = %s AND C_D_ID = %s AND C_LAST = %s ORDER BY C_FIRST", # w_id, d_id, c_last
-        "getCustomersByLastName": "SELECT (data->'C_ID')::integer, data->>'C_FIRST', data->>'C_MIDDLE', data->>'C_LAST', (data->'C_BALANCE')::numeric FROM CUSTOMER WHERE (data->'C_W_ID')::smallint = %s AND (data->'C_D_ID')::smallint = %s AND data->>'C_LAST' = %s ORDER BY data->>'C_FIRST'",
+        "getCustomersByLastName": "SELECT (data->>'C_ID')::INTEGER, data->>'C_FIRST', data->>'C_MIDDLE', data->>'C_LAST', (data->>'C_BALANCE')::FLOAT FROM CUSTOMER WHERE (data->>'C_W_ID')::SMALLINT = %s AND (data->>'C_D_ID')::SMALLINT = %s AND data->>'C_LAST' = %s ORDER BY data->>'C_FIRST'",
         # "getLastOrder": "SELECT O_ID, O_CARRIER_ID, O_ENTRY_D FROM ORDERS WHERE O_W_ID = %s AND O_D_ID = %s AND O_C_ID = %s ORDER BY O_ID DESC LIMIT 1", # w_id, d_id, c_id
-        "getLastOrder": "SELECT (data->'O_ID')::integer, (data->'O_CARRIER_ID')::integer, data->>'O_ENTRY_D' FROM ORDERS WHERE (data->'O_W_ID')::smallint = %s AND (data->'O_D_ID')::smallint = %s AND (data->'O_C_ID')::integer = %s ORDER BY (data->'O_ID')::integer DESC LIMIT 1",
+        "getLastOrder": "SELECT (data->>'O_ID')::INTEGER, (data->>'O_CARRIER_ID')::INTEGER, (data->>'O_ENTRY_D')::TIMESTAMP FROM ORDERS WHERE (data->>'O_W_ID')::SMALLINT = %s AND (data->>'O_D_ID')::SMALLINT = %s AND (data->>'O_C_ID')::INTEGER = %s ORDER BY (data->>'O_ID')::INTEGER DESC LIMIT 1",
         # "getOrderLines": "SELECT OL_SUPPLY_W_ID, OL_I_ID, OL_QUANTITY, OL_AMOUNT, OL_DELIVERY_D FROM ORDER_LINE WHERE OL_W_ID = %s AND OL_D_ID = %s AND OL_O_ID = %s", # w_id, d_id, o_id
-        "getOrderLines": "SELECT (data->'OL_SUPPLY_W_ID')::smallint, (data->'OL_I_ID')::integer, (data->'OL_QUANTITY')::integer, (data->'OL_AMOUNT')::numeric, data->>'OL_DELIVERY_D' FROM ORDER_LINE WHERE (data->'OL_W_ID')::smallint = %s AND (data->'OL_D_ID')::smallint = %s AND (data->'OL_O_ID')::integer = %s",
+        "getOrderLines": "SELECT (data->>'OL_SUPPLY_W_ID')::SMALLINT, (data->>'OL_I_ID')::INTEGER, (data->>'OL_QUANTITY')::INTEGER, (data->>'OL_AMOUNT')::FLOAT, (data->>'OL_DELIVERY_D')::TIMESTAMP FROM ORDER_LINE WHERE (data->>'OL_W_ID')::SMALLINT = %s AND (data->>'OL_D_ID')::SMALLINT = %s AND (data->>'OL_O_ID')::INTEGER = %s"
     },
     
     "PAYMENT": {
         # "getWarehouse": "SELECT W_NAME, W_STREET_1, W_STREET_2, W_CITY, W_STATE, W_ZIP FROM WAREHOUSE WHERE W_ID = %s", # w_id
-        "getWarehouse": "SELECT data->>'W_NAME', data->>'W_STREET_1', data->>'W_STREET_2', data->>'W_CITY', data->>'W_STATE', data->>'W_ZIP' FROM WAREHOUSE WHERE (data->'W_ID')::smallint = %s",
+        "getWarehouse": "SELECT data->>'W_NAME', data->>'W_STREET_1', data->>'W_STREET_2', data->>'W_CITY', data->>'W_STATE', data->>'W_ZIP' FROM WAREHOUSE WHERE (data->>'W_ID')::SMALLINT = %s",
         
         # "updateWarehouseBalance": "UPDATE WAREHOUSE SET W_YTD = W_YTD + %s WHERE W_ID = %s", # h_amount, w_id
-        "updateWarehouseBalance": "UPDATE WAREHOUSE SET data = jsonb_set(data, '{W_YTD}', to_jsonb(((data->'W_YTD')::numeric + %s::numeric)), true) WHERE (data->'W_ID')::smallint = %s",
+        "updateWarehouseBalance": "UPDATE WAREHOUSE SET data = jsonb_set(data, '{W_YTD}', to_jsonb(((data->>'W_YTD')::FLOAT + %s::FLOAT))) WHERE (data->>'W_ID')::SMALLINT = %s",
         
         # "getDistrict": "SELECT D_NAME, D_STREET_1, D_STREET_2, D_CITY, D_STATE, D_ZIP FROM DISTRICT WHERE D_W_ID = %s AND D_ID = %s", # w_id, d_id
-        "getDistrict": "SELECT data->>'D_NAME', data->>'D_STREET_1', data->>'D_STREET_2', data->>'D_CITY', data->>'D_STATE', data->>'D_ZIP' FROM DISTRICT WHERE (data->'D_W_ID')::smallint = %s AND (data->'D_ID')::smallint = %s",
+        "getDistrict": "SELECT data->>'D_NAME', data->>'D_STREET_1', data->>'D_STREET_2', data->>'D_CITY', data->>'D_STATE', data->>'D_ZIP' FROM DISTRICT WHERE (data->>'D_W_ID')::SMALLINT = %s AND (data->>'D_ID')::SMALLINT = %s",
         
         # "updateDistrictBalance": "UPDATE DISTRICT SET D_YTD = D_YTD + %s WHERE D_W_ID  = %s AND D_ID = %s", # h_amount, d_w_id, d_id
-        "updateDistrictBalance": "UPDATE DISTRICT SET data = jsonb_set(data, '{D_YTD}', to_jsonb(((data->'D_YTD')::numeric + %s::numeric)), true) WHERE (data->'D_W_ID')::smallint = %s AND (data->'D_ID')::smallint = %s",
+        "updateDistrictBalance": "UPDATE DISTRICT SET data = jsonb_set(data, '{D_YTD}', to_jsonb(((data->>'D_YTD')::FLOAT + %s::FLOAT))) WHERE (data->>'D_W_ID')::SMALLINT = %s AND (data->>'D_ID')::SMALLINT = %s",
         
         # "getCustomerByCustomerId": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_STREET_1, C_STREET_2, C_CITY, C_STATE, C_ZIP, C_PHONE, C_SINCE, C_CREDIT, C_CREDIT_LIM, C_DISCOUNT, C_BALANCE, C_YTD_PAYMENT, C_PAYMENT_CNT, C_DATA FROM CUSTOMER WHERE C_W_ID = %s AND C_D_ID = %s AND C_ID = %s", # w_id, d_id, c_id
-        "getCustomerByCustomerId": "SELECT (data->'C_ID')::integer, data->>'C_FIRST', data->>'C_MIDDLE', data->>'C_LAST', data->>'C_STREET_1', data->>'C_STREET_2', data->>'C_CITY', data->>'C_STATE', data->>'C_ZIP', data->>'C_PHONE', data->>'C_SINCE', data->>'C_CREDIT', (data->'C_CREDIT_LIM')::numeric, (data->'C_DISCOUNT')::numeric, (data->'C_BALANCE')::numeric, (data->' ')::numeric, (data->'C_PAYMENT_CNT')::integer, data->>'C_DATA' FROM CUSTOMER WHERE (data->'C_W_ID')::smallint = %s AND (data->'C_D_ID')::smallint = %s AND (data->'C_ID')::integer = %s",
+        "getCustomerByCustomerId": "SELECT (data->>'C_ID')::INTEGER, data->>'C_FIRST', data->>'C_MIDDLE', data->>'C_LAST', data->>'C_STREET_1', data->>'C_STREET_2', data->>'C_CITY', data->>'C_STATE', data->>'C_ZIP', data->>'C_PHONE', (data->>'C_SINCE')::TIMESTAMP, data->>'C_CREDIT', (data->>'C_CREDIT_LIM')::FLOAT, (data->>'C_DISCOUNT')::FLOAT, (data->>'C_BALANCE')::FLOAT, (data->>'C_YTD_PAYMENT')::FLOAT, (data->>'C_PAYMENT_CNT')::INTEGER, data->>'C_DATA' FROM CUSTOMER WHERE (data->>'C_W_ID')::SMALLINT = %s AND (data->>'C_D_ID')::SMALLINT = %s AND (data->>'C_ID')::INTEGER = %s",
         
         # "getCustomersByLastName": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_STREET_1, C_STREET_2, C_CITY, C_STATE, C_ZIP, C_PHONE, C_SINCE, C_CREDIT, C_CREDIT_LIM, C_DISCOUNT, C_BALANCE, C_YTD_PAYMENT, C_PAYMENT_CNT, C_DATA FROM CUSTOMER WHERE C_W_ID = %s AND C_D_ID = %s AND C_LAST = %s ORDER BY C_FIRST", # w_id, d_id, c_last
-        "getCustomersByLastName": "SELECT (data->'C_ID')::integer, data->>'C_FIRST', data->>'C_MIDDLE', data->>'C_LAST', data->>'C_STREET_1', data->>'C_STREET_2', data->>'C_CITY', data->>'C_STATE', data->>'C_ZIP', data->>'C_PHONE', data->>'C_SINCE', data->>'C_CREDIT', (data->'C_CREDIT_LIM')::numeric, (data->'C_DISCOUNT')::numeric, (data->'C_BALANCE')::numeric, (data->'C_YTD_PAYMENT')::numeric, (data->'C_PAYMENT_CNT')::integer, data->>'C_DATA' FROM CUSTOMER WHERE (data->'C_W_ID')::smallint = %s AND (data->'C_D_ID')::smallint = %s AND data->>'C_LAST' = %s ORDER BY data->>'C_FIRST'",
+        "getCustomersByLastName": "SELECT (data->>'C_ID')::INTEGER, data->>'C_FIRST', data->>'C_MIDDLE', data->>'C_LAST', data->>'C_STREET_1', data->>'C_STREET_2', data->>'C_CITY', data->>'C_STATE', data->>'C_ZIP', data->>'C_PHONE', (data->>'C_SINCE')::TIMESTAMP, data->>'C_CREDIT', (data->>'C_CREDIT_LIM')::FLOAT, (data->>'C_DISCOUNT')::FLOAT, (data->>'C_BALANCE')::FLOAT, (data->>'C_YTD_PAYMENT')::FLOAT, (data->>'C_PAYMENT_CNT')::INTEGER, data->>'C_DATA' FROM CUSTOMER WHERE (data->>'C_W_ID')::SMALLINT = %s AND (data->>'C_D_ID')::SMALLINT = %s AND data->>'C_LAST' = %s ORDER BY data->>'C_FIRST'",
         
         # "updateBCCustomer": "UPDATE CUSTOMER SET C_BALANCE = %s, C_YTD_PAYMENT = %s, C_PAYMENT_CNT = %s, C_DATA = %s WHERE C_W_ID = %s AND C_D_ID = %s AND C_ID = %s", # c_balance, c_ytd_payment, c_payment_cnt, c_data, c_w_id, c_d_id, c_id
-        "updateBCCustomer": "UPDATE CUSTOMER SET data = jsonb_set(data, '{C_BALANCE, C_YTD_PAYMENT, C_PAYMENT_CNT, C_DATA}', jsonb_build_array(to_jsonb(%s::numeric), to_jsonb(%s::numeric), to_jsonb(%s::integer), %s), true) WHERE (data->'C_W_ID')::smallint = %s AND (data->'C_D_ID')::smallint = %s AND (data->'C_ID')::integer = %s",
+        "updateBCCustomer": "UPDATE CUSTOMER SET data = jsonb_set(jsonb_set(jsonb_set(jsonb_set(data, '{C_BALANCE}', to_jsonb(%s::FLOAT)), '{C_YTD_PAYMENT}', to_jsonb(%s::FLOAT)), '{C_PAYMENT_CNT}', to_jsonb(%s::INTEGER)), '{C_DATA}', to_jsonb(%s::TEXT)) WHERE (data->>'C_W_ID')::SMALLINT = %s AND (data->>'C_D_ID')::SMALLINT = %s AND (data->>'C_ID')::INTEGER = %s",
         
         # "updateGCCustomer": "UPDATE CUSTOMER SET C_BALANCE = %s, C_YTD_PAYMENT = %s, C_PAYMENT_CNT = %s WHERE C_W_ID = %s AND C_D_ID = %s AND C_ID = %s", # c_balance, c_ytd_payment, c_payment_cnt, c_w_id, c_d_id, c_id
-        "updateGCCustomer": "UPDATE CUSTOMER SET data = jsonb_set(data, '{C_BALANCE, C_YTD_PAYMENT, C_PAYMENT_CNT}', jsonb_build_array(to_jsonb(%s::numeric), to_jsonb(%s::numeric), to_jsonb(%s::integer)), true) WHERE (data->'C_W_ID')::smallint = %s AND (data->'C_D_ID')::smallint = %s AND (data->'C_ID')::integer = %s",
+        "updateGCCustomer": "UPDATE CUSTOMER SET data = jsonb_set(jsonb_set(jsonb_set(data, '{C_BALANCE}', to_jsonb(%s::FLOAT)), '{C_YTD_PAYMENT}', to_jsonb(%s::FLOAT)), '{C_PAYMENT_CNT}', to_jsonb(%s::INTEGER)) WHERE (data->>'C_W_ID')::SMALLINT = %s AND (data->>'C_D_ID')::SMALLINT = %s AND (data->>'C_ID')::INTEGER = %s",
         
         # "insertHistory": "INSERT INTO HISTORY VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-        "insertHistory": "INSERT INTO HISTORY (data) VALUES (jsonb_build_object('H_C_ID', %s::integer, 'H_C_D_ID', %s::smallint, 'H_C_W_ID', %s::smallint, 'H_D_ID', %s::smallint, 'H_W_ID', %s::smallint, 'H_DATE', %s, 'H_AMOUNT', %s::numeric, 'H_DATA', %s))",
+        "insertHistory": "INSERT INTO HISTORY (data) VALUES (jsonb_build_object('H_C_ID', %s::INTEGER, 'H_C_D_ID', %s::SMALLINT, 'H_C_W_ID', %s::SMALLINT, 'H_D_ID', %s::SMALLINT, 'H_W_ID', %s::SMALLINT, 'H_DATE', %s::TIMESTAMP, 'H_AMOUNT', %s::FLOAT, 'H_DATA', %s::TEXT))"
     },
     
     "STOCK_LEVEL": {
         # "getOId": "SELECT D_NEXT_O_ID FROM DISTRICT WHERE D_W_ID = %s AND D_ID = %s", 
-        "getOId": "SELECT (data->'D_NEXT_O_ID')::integer FROM DISTRICT WHERE (data->'D_W_ID')::smallint = %s AND (data->'D_ID')::smallint = %s",
+        "getOId": "SELECT (data->>'D_NEXT_O_ID')::INTEGER FROM DISTRICT WHERE (data->>'D_W_ID')::SMALLINT = %s AND (data->>'D_ID')::SMALLINT = %s",
         # "getStockCount": """
         #     SELECT COUNT(DISTINCT(OL_I_ID)) FROM ORDER_LINE, STOCK
         #     WHERE OL_W_ID = %s
@@ -108,7 +108,7 @@ TXN_QUERIES = {
         #       AND S_I_ID = OL_I_ID
         #       AND S_QUANTITY < %s
         # """,
-        "getStockCount": "SELECT COUNT(DISTINCT((ol.data->'OL_I_ID')::integer)) FROM ORDER_LINE ol, STOCK s WHERE (ol.data->'OL_W_ID')::smallint = %s AND (ol.data->'OL_D_ID')::smallint = %s AND (ol.data->'OL_O_ID')::integer < %s AND (ol.data->'OL_O_ID')::integer >= %s AND (s.data->'S_W_ID')::smallint = %s AND (s.data->'S_I_ID')::integer = (ol.data->'OL_I_ID')::integer AND (s.data->'S_QUANTITY')::integer < %s",
+        "getStockCount": "SELECT COUNT(DISTINCT((ol.data->>'OL_I_ID')::INTEGER)) FROM ORDER_LINE ol, STOCK s WHERE (ol.data->>'OL_W_ID')::SMALLINT = %s AND (ol.data->>'OL_D_ID')::SMALLINT = %s AND (ol.data->>'OL_O_ID')::INTEGER < %s AND (ol.data->>'OL_O_ID')::INTEGER >= %s AND (s.data->>'S_W_ID')::SMALLINT = %s AND (s.data->>'S_I_ID')::INTEGER = (ol.data->>'OL_I_ID')::INTEGER AND (s.data->>'S_QUANTITY')::INTEGER < %s",
     },
 }
 
@@ -424,10 +424,7 @@ class PostgresqljsonbDriver(AbstractDriver):
                     no_o_id = newOrder[0]
                     
                     self.cursor.execute(q["getCId"], [no_o_id, d_id, w_id])
-                    result = self.cursor.fetchone()
-                    if result is None:
-                        continue
-                    c_id = result[0]
+                    c_id = self.cursor.fetchone()[0]
                     
                     self.cursor.execute(q["sumOLAmount"], [no_o_id, d_id, w_id])
                     ol_total = self.cursor.fetchone()[0]
@@ -450,8 +447,8 @@ class PostgresqljsonbDriver(AbstractDriver):
                 self.conn.commit()
                 return (result,retries)
             except Exception as e:
-                print("An error occurred:")
-                traceback.print_exc()
+                #print("An error occurred:")
+                #traceback.print_exc()
                 self.conn.rollback()  # Rollback the transaction on error
                 retries += 1
                 sleep(retries * .1)
@@ -538,7 +535,7 @@ class PostgresqljsonbDriver(AbstractDriver):
                     
                     stockInfo = self.cursor.fetchone()
                     if len(stockInfo) == 0:
-                        logging.warn("No STOCK record for (ol_i_id=%d, ol_supply_w_id=%d)" % (ol_i_id, ol_supply_w_id))
+                        logging.debug("No STOCK record for (ol_i_id=%d, ol_supply_w_id=%d)" % (ol_i_id, ol_supply_w_id))
                         continue
                     s_quantity = stockInfo[0]
                     s_ytd = stockInfo[2]

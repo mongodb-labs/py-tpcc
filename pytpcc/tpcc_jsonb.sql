@@ -10,9 +10,9 @@
 CREATE TABLE ITEM (
   data JSONB
 );
-CREATE UNIQUE INDEX idx_item ON ITEM (
-    (data->>'I_W_ID'),
-    (data->>'I_ID')
+
+CREATE UNIQUE INDEX item_pkey_idx ON ITEM (
+  ((data->>'I_ID')::INTEGER)
 );
 
 
@@ -32,11 +32,10 @@ CREATE UNIQUE INDEX idx_item ON ITEM (
 CREATE TABLE WAREHOUSE (
   data JSONB
 );
-CREATE UNIQUE INDEX idx_warehouse ON WAREHOUSE (
-    (data->>'W_ID'),
-    (data->>'W_TAX')
-);
 
+CREATE UNIQUE INDEX warehouse_pkey_idx ON WAREHOUSE (
+  ((data->>'W_ID')::SMALLINT)
+);
 
 -- CREATE TABLE DISTRICT (
 --   D_ID SMALLINT DEFAULT '0' NOT NULL,
@@ -56,11 +55,10 @@ CREATE UNIQUE INDEX idx_warehouse ON WAREHOUSE (
 CREATE TABLE DISTRICT (
   data JSONB
 );
-CREATE UNIQUE INDEX idx_district ON DISTRICT (
-    (data->>'D_W_ID'),
-    (data->>'D_ID'),
-    (data->>'D_NEXT_O_ID'),
-    (data->>'D_TAX')
+
+CREATE UNIQUE INDEX district_pkey_idx ON DISTRICT (
+  ((data->>'D_W_ID')::SMALLINT),
+  ((data->>'D_ID')::SMALLINT)
 );
 
 -- CREATE TABLE CUSTOMER (
@@ -93,15 +91,24 @@ CREATE UNIQUE INDEX idx_district ON DISTRICT (
 CREATE TABLE CUSTOMER (
   data JSONB
 );
-CREATE UNIQUE INDEX idx_customer ON CUSTOMER (
-    (data->>'C_W_ID'),
-    (data->>'C_D_ID'),
-    (data->>'C_ID')
+
+CREATE UNIQUE INDEX customer_pkey_idx ON CUSTOMER (
+  ((data->>'C_W_ID')::SMALLINT),
+  ((data->>'C_D_ID')::SMALLINT),
+  ((data->>'C_ID')::INTEGER)
 );
-CREATE INDEX idx_customer_1 ON CUSTOMER (
-    (data->>'C_W_ID'),
-    (data->>'C_D_ID'),
-    (data->>'C_LAST')
+
+CREATE UNIQUE INDEX customer_unique_name_idx ON CUSTOMER (
+  ((data->>'C_W_ID')::SMALLINT),
+  ((data->>'C_D_ID')::SMALLINT),
+  (data->>'C_LAST'),
+  (data->>'C_FIRST')
+);
+
+CREATE INDEX customer_idx_last ON CUSTOMER (
+  ((data->>'C_W_ID')::SMALLINT),
+  ((data->>'C_D_ID')::SMALLINT),
+  (data->>'C_LAST')
 );
 
 
@@ -129,14 +136,9 @@ CREATE TABLE STOCK (
   data JSONB
 );
 
-CREATE INDEX idx_stock ON STOCK (
-    (data->>'S_I_ID')
-);
-
-CREATE UNIQUE INDEX idx_stock_1 ON STOCK (
-    (data->>'S_W_ID'),
-    (data->>'S_I_ID'),
-    (data->>'S_QUANTITY')
+CREATE UNIQUE INDEX stock_pkey_idx ON STOCK (
+  ((data->>'S_W_ID')::SMALLINT),
+  ((data->>'S_I_ID')::INTEGER)
 );
 
 -- CREATE TABLE HISTORY (
@@ -172,20 +174,24 @@ CREATE TABLE HISTORY (
 CREATE TABLE ORDERS (
   data JSONB
 );
-CREATE UNIQUE INDEX idx_orders ON ORDERS (
-    (data->>'O_W_ID'),
-    (data->>'O_D_ID'),
-    (data->>'O_ID'),
-    (data->>'O_C_ID')
+
+CREATE UNIQUE INDEX orders_pkey_idx ON ORDERS (
+  ((data->>'O_W_ID')::SMALLINT),
+  ((data->>'O_D_ID')::SMALLINT),
+  ((data->>'O_ID')::INTEGER)
 );
 
-CREATE INDEX idx_orders_1 ON ORDERS (
-    (data->>'O_C_ID'),
-    (data->>'O_D_ID'),
-    (data->>'O_W_ID'),
-    (data->>'O_ID') DESC,
-    (data->>'O_CARRIER_ID'),
-    (data->>'O_ENTRY_ID')
+CREATE UNIQUE INDEX orders_unique_idx ON ORDERS (
+  ((data->>'O_W_ID')::SMALLINT),
+  ((data->>'O_D_ID')::SMALLINT),
+  ((data->>'O_C_ID')::INTEGER),
+  ((data->>'O_ID')::INTEGER)
+);
+
+CREATE INDEX idx_orders_jsonb ON ORDERS (
+  ((data->>'O_W_ID')::SMALLINT),
+  ((data->>'O_D_ID')::SMALLINT),
+  ((data->>'O_C_ID')::INTEGER)
 );
 
 -- CREATE TABLE NEW_ORDER (
@@ -199,10 +205,10 @@ CREATE TABLE NEW_ORDER (
   data JSONB
 );
 
-CREATE UNIQUE INDEX idx_new_order ON NEW_ORDER (
-    (data->>'NO_W_ID'),
-    (data->>'NO_D_ID'),
-    (data->>'NO_O_ID')
+CREATE UNIQUE INDEX new_order_pkey_idx ON NEW_ORDER (
+  ((data->>'NO_D_ID')::SMALLINT),
+  ((data->>'NO_W_ID')::SMALLINT),
+  ((data->>'NO_O_ID')::INTEGER)
 );
 
 -- CREATE TABLE ORDER_LINE (
@@ -228,17 +234,15 @@ CREATE TABLE ORDER_LINE (
 );
 
 -- Indexes on ORDER_LINE are commented when running denormalized tests. Uncomment when running normalized tests
--- CREATE UNIQUE INDEX idx_order_line ON ORDER_LINE (
---     (data->>'OL_O_ID'),
---     (data->>'OL_D_ID'),
---     (data->>'OL_W_ID'),
---     (data->>'OL_NUMBER')
+-- CREATE UNIQUE INDEX order_line_pkey_idx ON ORDER_LINE (
+--   ((data->>'OL_W_ID')::SMALLINT),
+--   ((data->>'OL_D_ID')::SMALLINT),
+--   ((data->>'OL_O_ID')::INTEGER),
+--   ((data->>'OL_NUMBER')::INTEGER)
 -- );
 
--- CREATE INDEX idx_order_line_1 ON ORDER_LINE (
---     (data->>'OL_O_ID'),
---     (data->>'OL_D_ID'),
---     (data->>'OL_W_ID'),
---     (data->>'OL_I_ID') DESC,
---     (data->>'OL_AMOUNT')
+-- CREATE INDEX order_line_idx_tree ON ORDER_LINE (
+--   ((data->>'OL_W_ID')::SMALLINT),
+--   ((data->>'OL_D_ID')::SMALLINT),
+--   ((data->>'OL_O_ID')::INTEGER)
 -- );

@@ -188,7 +188,9 @@ class PostgresqlDriver(AbstractDriver):
                     ## FOR
                 self.conn.commit()
                 return (result,retries)
-            except:
+            except Exception as e:
+                #print("An error occurred:")
+                #traceback.print_exc()
                 self.conn.rollback()  # Rollback the transaction on error
                 retries += 1
                 sleep(retries * .1)
@@ -319,8 +321,8 @@ class PostgresqlDriver(AbstractDriver):
                 misc = [ (w_tax, d_tax, d_next_o_id, total) ]
                 return ([ customer_info, misc, item_data ], retries)
             except Exception as e:
-                print("An error occurred:")
-                traceback.print_exc()
+                #print("An error occurred:")
+                #traceback.print_exc()
                 self.conn.rollback()  # Rollback the transaction on error
                 retries += 1
                 sleep(retries * .1)
@@ -367,7 +369,9 @@ class PostgresqlDriver(AbstractDriver):
 
                 self.conn.commit()
                 return ([ customer, order, orderLines ],retries)
-            except:
+            except Exception as e:
+                #print("An error occurred:")
+                #traceback.print_exc()
                 self.conn.rollback()  # Rollback the transaction on error
                 retries += 1
                 sleep(retries * .1)
@@ -442,7 +446,9 @@ class PostgresqlDriver(AbstractDriver):
 
                 # Hand back all the warehouse, district, and customer data
                 return ([ warehouse, district, customer ],retries)
-            except:
+            except Exception as e:
+                #print("An error occurred:")
+                #traceback.print_exc()
                 self.conn.rollback()  # Rollback the transaction on error
                 retries += 1
                 sleep(retries * .1)
@@ -469,7 +475,9 @@ class PostgresqlDriver(AbstractDriver):
                 self.conn.commit()
                 
                 return (int(result[0]),retries)
-            except:
+            except Exception as e:
+                #print("An error occurred:")
+                #traceback.print_exc()
                 self.conn.rollback()  # Rollback the transaction on error
                 retries += 1
                 sleep(retries * .1)
