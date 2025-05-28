@@ -271,6 +271,8 @@ class MongodbDriver(AbstractDriver):
         self.causal_consistency = config['causal_consistency'] == 'True'
         self.retry_writes = config['retry_writes'] == 'True'
         self.secondary_reads = config['secondary_reads'] == 'True'
+        self.agg = config['agg'] == 'True'
+
         if self.secondary_reads:
             self.read_preference = "nearest"
 
