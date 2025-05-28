@@ -201,6 +201,7 @@ class MongodbDriver(AbstractDriver):
         "denormalize":      ("If true, data will be denormalized using MongoDB schema design best practices", True),
         "notransactions":   ("If true, transactions will not be used (benchmarking only)", False),
         "findandmodify":    ("If true, all things to update will be fetched via findAndModify", True),
+        "agg":              ("If true, aggregation queries will be used", False),
         "secondary_reads":  ("If true, we will allow secondary reads", True),
         "retry_writes":     ("If true, we will enable retryable writes", True),
         "causal_consistency":  ("If true, we will perform causal reads ", True),
@@ -221,9 +222,9 @@ class MongodbDriver(AbstractDriver):
         self.client = None
         self.executed = False
         self.w_orders = {}
+        self.agg = False
         # things that are not better can't be set in config
         self.batch_writes = True
-        self.agg = False
         self.all_in_one_txn = True
         # initialize
         self.causal_consistency = False
