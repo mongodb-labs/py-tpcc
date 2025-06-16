@@ -262,6 +262,27 @@ class PostgresqljsonbDriver(AbstractDriver):
             port=config["port"]
         )
 
+        self.conn.isolation_level = psycopg2.extensions.ISOLATION_LEVEL_DEFAULT
+        if config["isolation-level"]:
+            isolation_level = config["isolation-level"].lower()
+
+            if isolation_level == "read_uncommitted":
+                self.conn.isolation_level = psycopg2.extensions.ISOLATION_LEVEL_READ_UNCOMMITTED
+                print("Isolation level set to READ UNCOMMITTED.")
+            elif isolation_level == "read_committed":
+                self.conn.isolation_level = psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED
+                print("Isolation level set to READ COMMITTED.")
+            elif isolation_level == "repeatable_read":
+                self.conn.isolation_level = psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ
+                print("Isolation level set to REPEATABLE READ.")
+            elif isolation_level == "serializable":
+                self.conn.isolation_level = psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE
+                print("Isolation level set to SERIALIZABLE.")
+            elif isolation_level == "default":
+                print("Isolation level set to DEFAULT (PostgreSQL's default).")
+            else:
+                print(f"Warning: Unrecognized isolation level '{config['isolation-level']}. Valid values are `default`, `read_uncommitted`, `read_committed`, `repeatable_read`, `serializable`'. Using the PostgreSQL default.")
+
         self.cursor = self.conn.cursor()
 
         if config["reset"]:
