@@ -315,19 +315,9 @@ class PostgresqljsonbDriver(AbstractDriver):
         self.cursor.execute("set session_replication_role to replica")
 
     def loadTuples(self, tableName, tuples):
-        # if len(tuples) == 0:
-        #     return
-        # placeholders = ', '.join(['%s'] * len(tuples[0]))
-        # sql = f"INSERT INTO {tableName} VALUES ({placeholders})"
-        # self.cursor.executemany(sql, tuples)
-        # logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
-        # return
-
         if not tuples:
             return
         logging.debug("Loading %d tuples for tableName %s", len(tuples), tableName)
-        # print (tuples)
-        # sys.exit()
 
         assert tableName in TABLE_COLUMNS, "Table %s not found in TABLE_COLUMNS" % tableName
         columns = TABLE_COLUMNS[tableName]
@@ -400,9 +390,6 @@ class PostgresqljsonbDriver(AbstractDriver):
 
             data = [(json.dumps(d, cls=DateTimeEncoder),) for d in tuple_dicts]
             self.cursor.executemany(sql, data)
-            # self.conn.commit()
-            # sys.exit(-1)
-            # self.database[tableName].insert_many(tuple_dicts)
         ## IF
 
         return
@@ -419,7 +406,6 @@ class PostgresqljsonbDriver(AbstractDriver):
             logging.debug("Pushing %d denormalized ORDERS records for WAREHOUSE %d DISTRICT %d into MongoDB", len(self.w_orders), w_id, d_id)
             self.database[constants.TABLENAME_ORDERS].insert(self.w_orders.values())
             self.w_orders.clear()
-        ## IF
 
     ## ----------------------------------------------
     ## doDelivery

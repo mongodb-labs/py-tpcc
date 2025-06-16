@@ -234,13 +234,6 @@ class MongodbDriver(AbstractDriver):
         self.warehouses = 0
         self.shards = 1
 
-        # Get a list of all attributes and methods of pymongo
-        # attributes = dir(pymongo)
-        # # Print the attributes
-        # for attr in attributes:
-        #     print(attr)
-        # sys.exit()
-
         ## Create member mapping to collections
         for name in constants.ALL_TABLES:
             self.__dict__[name.lower()] = None
@@ -365,8 +358,6 @@ class MongodbDriver(AbstractDriver):
         if not tuples:
             return
         logging.debug("Loading %d tuples for tableName %s", len(tuples), tableName)
-        # print (tuples)
-        # sys.exit()
 
         assert tableName in TABLE_COLUMNS, "Table %s not found in TABLE_COLUMNS" % tableName
         columns = TABLE_COLUMNS[tableName]
@@ -417,8 +408,6 @@ class MongodbDriver(AbstractDriver):
             for t in tuples:
                 tuple_dicts.append(dict([(columns[i], t[i]) for i in num_columns]))
             ## FOR
-            # print (tuple_dicts[:5])
-            # sys.exit(-1)
             self.database[tableName].insert_many(tuple_dicts)
         ## IF
 
