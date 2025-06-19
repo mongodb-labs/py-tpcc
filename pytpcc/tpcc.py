@@ -102,29 +102,66 @@ def getDrivers():
 ## startLoading
 ## ==============================================
 def startLoading(driverClass, scaleParameters, args, config):
-    logging.debug("Creating client pool with %d processes", args['clients'])
-    pool = multiprocessing.Pool(args['clients'])
+    """
+    Starts multiple worker processes to process warehouses in batches.  Each batch
+    consists of 'clients' number of workers, each handling one warehouse.
+    """
+    clients = args['clients']
+    logging.debug("Creating client pool with %d processes", clients)
+    pool = multiprocessing.Pool(clients)
 
-    # Split the warehouses into chunks
-    w_ids = [[] for _ in range(args['clients'])]
-    for w_id in range(scaleParameters.starting_warehouse, scaleParameters.ending_warehouse+1):
-        idx = w_id % args['clients']
-        w_ids[idx].append(w_id)
-    ## FOR
+    # Calculate total number of warehouses
+    total_warehouses = scaleParameters.ending_warehouse - scaleParameters.starting_warehouse + 1
+    logging.debug(f"Total warehouses: {total_warehouses}")
 
     loader_results = []
     try:
         del args['config']
     except KeyError:
-        print()
-    for i in range(args['clients']):
-        r = pool.apply_async(loaderFunc, (driverClass, scaleParameters, args, config, w_ids[i]))
+        logging.warning("Key 'config' not found in args")
+
+    # Iterate through warehouses, processing them in batches of 'clients'
+    for i in range(total_warehouses):
+        w_id = scaleParameters.starting_warehouse + i
+        logging.debug(f"Processing warehouse {w_id} in batch {i // clients}")
+
+        # Apply the loader function asynchronously for the current warehouse
+        r = pool.apply_async(loaderFunc, (driverClass, scaleParameters, args, config, [w_id]))
         loader_results.append(r)
-    ## FOR
+
+        # If we've launched 'clients' workers, wait for them to complete before launching the next batch
+        if (i + 1) % clients == 0:
+            logging.debug(f"Waiting for batch {i // clients} to complete")
+            for r in loader_results:
+                try:
+                    error_message = r.get()
+                    if error_message:
+                        logging.error(f"Worker process reported error: {error_message}")
+                        raise RuntimeError(f"Failed to process batch: {error_message}")
+                except Exception as e:
+                    logging.error(f"Exception raised by worker process: {e}")
+                    raise
+            loader_results = []  # Clear results for next batch
+            logging.debug(f"Starting batch {i // clients + 1}")
+            time.sleep(5)
+
+    # Wait for any remaining workers (in the last partial batch) to complete
+    if loader_results:
+        logging.debug("Waiting for the final batch to complete")
+        for r in loader_results:
+            try:
+                error_message = r.get()
+                if error_message:
+                    logging.error(f"Worker process reported error: {error_message}")
+                    raise RuntimeError(f"Failed to process final batch: {error_message}")
+            except Exception as e:
+                logging.error(f"Exception raised by worker process: {e}")
+                raise
 
     pool.close()
-    logging.debug("Waiting for %d loaders to finish", args['clients'])
+    logging.debug("Waiting for all loaders to finish")
     pool.join()
+    logging.info("All loading complete")
 ## DEF
 
 ## ==============================================

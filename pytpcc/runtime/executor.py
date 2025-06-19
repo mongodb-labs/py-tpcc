@@ -76,7 +76,8 @@ class Executor:
                 batch_result.abortTransaction(batch_txn_id)
                 if self.stop_on_error: raise
                 continue
-
+            
+            # This will happen on all failing 1% of the transactions
             if val is None:
                 global_result.abortTransaction(global_txn_id, retries)
                 batch_result.abortTransaction(batch_txn_id, retries)
@@ -106,6 +107,16 @@ class Executor:
         x = rand.number(1, 100)
         params = None
         txn = None
+        
+        #========================================================================================
+        # To debug use this to run a specific tpcc test. Run x=100 for new order before running other tests
+        #x = 100 # new order
+        #x = 44  # payment
+        #x = 9   # order status
+        #x = 7   # delivery
+        #x = 3   # stock level
+        #========================================================================================
+
         if x <= 4: ## 4%
             txn, params = (constants.TransactionTypes.STOCK_LEVEL, self.generateStockLevelParams())
         elif x <= 4 + 4: ## 4%

@@ -38,6 +38,7 @@ import urllib
 from pprint import pformat
 from time import sleep
 import pymongo
+from pymongo.client_session import TransactionOptions
 
 # Import TransactionOptions from pymongo.client_session or
 # pymongo.synchronous.client_session depending on the version of pymongo
@@ -414,7 +415,6 @@ class MongodbDriver(AbstractDriver):
             for t in tuples:
                 tuple_dicts.append(dict([(columns[i], t[i]) for i in num_columns]))
             ## FOR
-
             self.database[tableName].insert_many(tuple_dicts)
         ## IF
 
