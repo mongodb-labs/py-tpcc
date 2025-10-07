@@ -26,6 +26,7 @@
 
 import logging
 import time
+import os
 from collections import Counter
 
 class Results:
@@ -142,7 +143,7 @@ class Results:
     def __str__(self):
         return self.show()
 
-    def show(self, load_time=None, driver=None, threads=1):
+    def show(self, load_time=None, driver=None, threads=1, samewh=85):
         if not self.start:
             return "Benchmark not started"
         if not self.stop:
@@ -223,15 +224,19 @@ class Results:
             result_doc['batch_writes'] = driver.batch_writes
             result_doc['find_and_modify'] = driver.find_and_modify
             result_doc['read_preference'] = driver.read_preference
-            result_doc['write_concern'] = driver.write_concern.document['w']
+            result_doc['write_concern'] = str(driver.write_concern.document['w'])
             result_doc['causal'] = driver.causal_consistency
+            result_doc['no_global_items'] = driver.no_global_items
             result_doc['all_in_one_txn'] = driver.all_in_one_txn
             result_doc['retry_writes'] = driver.retry_writes
             result_doc['read_concern'] = driver.read_concern
+            result_doc['shards'] = driver.shards
             result_doc['total_retries'] = total_retries
+            result_doc['samewh'] = samewh
             result_doc['total'] = total_cnt
             result_doc['aborts'] = total_aborts
-            ret += "\n%s TpmC for %s %s thr %s txn %d WH: %d %d total %d durSec, batch %s %d retries %s%% %s fnM %s p50 %s p75 %s p90 %s p95 %s p99 %s max %s WC %s causal %s 10in1 %s retry %s %d %d" % (
+            result_doc['instance'] = os.getenv('INSTANCE')
+            ret += "\n%s TpmC for %s %s thr %s txn %d WH: %d %d total %d durSec, batch %s %d retries %s%% %s fnM %s p50 %s p75 %s p90 %s p95 %s p99 %s max %s WC %s causal %s 10in1 %s retry %s %d %d correct %d noGlobalItems %s" % (
                 time.strftime("%Y-%m-%d %H:%M:%S"),
                 ("normal", "denorm")[driver.denormalize],
                 threads,
@@ -246,7 +251,7 @@ class Results:
                 u"%6.2f" % (1000*lat[int(samples/100.0*99)]),
                 u"%6.2f" % (1000.0*lat[-1]),
                 str(driver.write_concern), ('false', 'true')[driver.causal_consistency],
-                ('false', 'true')[driver.all_in_one_txn], ('false', 'true')[driver.retry_writes],total_cnt,total_aborts)
+                ('false', 'true')[driver.all_in_one_txn], ('false', 'true')[driver.retry_writes],total_cnt,total_aborts, samewh, ('false', 'true')[driver.no_global_items])
             driver.save_result(result_doc)
             print(result_doc)
         # PostgreSQL driver returns a shorter version of the summary without extra configuration data

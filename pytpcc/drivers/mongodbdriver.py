@@ -38,14 +38,9 @@ import urllib
 from pprint import pformat
 from time import sleep
 import pymongo
-from pymongo.client_session import TransactionOptions
-
-# Import TransactionOptions from pymongo.client_session or
-# pymongo.synchronous.client_session depending on the version of pymongo
-from pymongo.client_session import TransactionOptions
 
 import constants
-from .abstractdriver import AbstractDriver
+from abstractdriver import AbstractDriver
 
 TABLE_COLUMNS = {
     constants.TABLENAME_ITEM: [
@@ -206,7 +201,8 @@ class MongodbDriver(AbstractDriver):
         "secondary_reads":  ("If true, we will allow secondary reads", True),
         "retry_writes":     ("If true, we will enable retryable writes", True),
         "causal_consistency":  ("If true, we will perform causal reads ", True),
-        "shards":          ("If >1 then sharded", "1")
+        "no_global_items":  ("If true, we will have use only one 'unsharded' items collection", False),
+        "shards":           ("If >0 then sharded", "0")
     }
     DENORMALIZED_TABLES = [
         constants.TABLENAME_ORDERS,
@@ -237,7 +233,9 @@ class MongodbDriver(AbstractDriver):
         self.output = open('results.json','a')
         self.result_doc = {}
         self.warehouses = 0
-        self.shards = 1
+        self.no_global_items = False
+        self.shards = 0
+        self.sshost = None
 
         ## Create member mapping to collections
         for name in constants.ALL_TABLES:
@@ -270,6 +268,7 @@ class MongodbDriver(AbstractDriver):
         self.warehouses = config['warehouses']
         self.find_and_modify = config['findandmodify'] == 'True'
         self.causal_consistency = config['causal_consistency'] == 'True'
+        self.no_global_items = config['no_global_items'] == 'True'
         self.retry_writes = config['retry_writes'] == 'True'
         self.secondary_reads = config['secondary_reads'] == 'True'
         self.agg = config['agg'] == 'True'
@@ -305,12 +304,19 @@ class MongodbDriver(AbstractDriver):
         real_uri = uri[0:pindex]+userpassword+uri[pindex:]
         display_uri = uri[0:pindex]+usersecret+uri[pindex:]
 
+        # for extra URL to mongos
+        if userpassword == "" and ':' in uri[pindex:] and '@' in uri[pindex:]:
+            at = uri.index('@',pindex)
+            userpassword = uri[(pindex):(at+1)]
         self.client = pymongo.MongoClient(real_uri,
                                           retryWrites=self.retry_writes,
                                           readPreference=self.read_preference,
                                           readConcernLevel=self.read_concern)
 
         self.result_doc['before']=self.get_server_status()
+        ssURI="mongodb://"+userpassword+self.result_doc['before']['host']+"/test?ssl=true&authSource=admin"
+        logging.debug("%s %s %s", userpassword, self.result_doc['before']['host'], ssURI)
+        self.sshost = pymongo.MongoClient(ssURI)
 
         # set default writeConcern on the database
         self.database = self.client.get_database(name=str(config['name']), write_concern=self.write_concern)
@@ -402,10 +408,11 @@ class MongodbDriver(AbstractDriver):
         else:
             if tableName == constants.TABLENAME_ITEM:
                 tuples3 = []
-                if self.shards > 1:
-                    ww = range(1,self.warehouses+1)
+                if self.shards > 0:
+                    ww = range(1,self.warehouses+1, int(self.warehouses/self.shards))
                 else:
                     ww = [0]
+                # print self.shards, self.warehouses, ww
                 for t in tuples:
                     for w in ww:
                        t2 = list(t)
@@ -415,17 +422,22 @@ class MongodbDriver(AbstractDriver):
             for t in tuples:
                 tuple_dicts.append(dict([(columns[i], t[i]) for i in num_columns]))
             ## FOR
-            self.database[tableName].insert_many(tuple_dicts)
+
+            self.database[tableName].insert_many(tuple_dicts, ordered=False)
         ## IF
 
         return
 
     def loadFinishDistrict(self, w_id, d_id):
+        logging.debug("LoadFinishDistrict")
         if self.denormalize:
             logging.debug("Pushing %d denormalized ORDERS records for WAREHOUSE %d DISTRICT %d into MongoDB", len(self.w_orders), w_id, d_id)
-            self.database[constants.TABLENAME_ORDERS].insert_many(self.w_orders.values())
+            self.database[constants.TABLENAME_ORDERS].insert_many(self.w_orders.values(), ordered=False)
             self.w_orders.clear()
         ## IF
+
+    def loadFinish(self):
+        logging.debug("load finish: ")
 
     def executeStart(self):
         """Optional callback before the execution for each client starts"""
@@ -614,8 +626,10 @@ class MongodbDriver(AbstractDriver):
         d_next_o_id = d["D_NEXT_O_ID"]
 
         # fetch matching items and see if they are all valid
-        if self.shards > 1: i_w_id = w_id
+        if self.shards > 0: i_w_id = w_id-(w_id-1)%(self.warehouses/self.shards) # get_i_w(w_id)
         else: i_w_id = 0
+        if self.no_global_items:
+            i_w_id = 1
         items = list(self.item.find({"I_ID": {"$in": i_ids}, "I_W_ID": i_w_id, "$comment": comment},
                                     {"_id":0, "I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1},
                                     session=s))
@@ -628,8 +642,7 @@ class MongodbDriver(AbstractDriver):
             #print constants.INVALID_ITEM_MESSAGE + ", Aborting transaction (ok for 1%)"
             return None
         ## IF
-        xxi_ids = tuple(map(lambda o: o['I_ID'], items))
-        items = sorted(items, key=lambda x: xxi_ids.index(x['I_ID']))
+        items = sorted(items, key=lambda x: i_ids.index(x['I_ID']))
 
         # getWarehouseTaxRate
         w = self.warehouse.find_one({"W_ID": w_id, "$comment": comment}, {"_id":0, "W_TAX": 1}, session=s)
@@ -684,8 +697,7 @@ class MongodbDriver(AbstractDriver):
                                               session=s))
         ## IF
         assert len(all_stocks) == ol_cnt, "all_stocks len %d != ol_cnt %d" % (len(all_stocks), ol_cnt)
-        xxxi_ids = tuple(map(lambda o: (o['S_I_ID'], o['S_W_ID']), all_stocks))
-        all_stocks = sorted(all_stocks, key=lambda x: xxxi_ids.index((x['S_I_ID'], x["S_W_ID"])))
+        all_stocks = sorted(all_stocks, key=lambda x: item_w_list.index((x['S_I_ID'], x["S_W_ID"])))
 
         ## ----------------
         ## Insert Order Line, Stock Item Information
@@ -784,7 +796,7 @@ class MongodbDriver(AbstractDriver):
 
         if self.batch_writes:
             if not self.denormalize:
-                self.order_line.insert_many(order_line_writes, session=s)
+                self.order_line.insert_many(order_line_writes, ordered=False, session=s)
             self.stock.bulk_write(stock_writes, session=s)
         ## IF
 
@@ -936,7 +948,7 @@ class MongodbDriver(AbstractDriver):
                                       session=s)
         ## IF
 
-        search_fields = {"C_W_ID": w_id, "C_D_ID": d_id, "$comment": comment}
+        search_fields = {"C_W_ID": c_w_id, "C_D_ID": c_d_id, "$comment": comment}
         return_fields = {"C_BALANCE": 0, "C_YTD_PAYMENT": 0, "C_PAYMENT_CNT": 0}
 
         if c_id != None:
@@ -1084,9 +1096,9 @@ class MongodbDriver(AbstractDriver):
             ol_ids.add(ol["OL_I_ID"])
         ## FOR
 
-        result = self.stock.count_documents({"S_W_ID": w_id,
+        result = self.stock.find({"S_W_ID": w_id,
                                   "S_I_ID": {"$in": list(ol_ids)},
-                                  "S_QUANTITY": {"$lt": threshold}, "$comment": comment})
+                                  "S_QUANTITY": {"$lt": threshold}, "$comment": comment}).count()
 
         return int(result)
 
@@ -1115,7 +1127,7 @@ class MongodbDriver(AbstractDriver):
     # Should we retry txns within the same session or start a new one?
     def run_transaction_with_retries(self, txn_callback, name, params):
         txn_retry_counter = 0
-        to = TransactionOptions(
+        to = pymongo.client_session.TransactionOptions(
             read_concern=None,
             #read_concern=pymongo.read_concern.ReadConcern("snapshot"),
             write_concern=self.write_concern,
@@ -1137,8 +1149,12 @@ class MongodbDriver(AbstractDriver):
                 sleep(txn_retry_counter * .1)
                 logging.debug("txn retry number for %s: %d", name, txn_retry_counter)
             ## WHILE
-    def get_server_status(self):
-        ss=self.client.admin.command('serverStatus')
+
+    def get_server_status(self, otherClient=None):
+        if otherClient and self.sshost:
+           ss=self.sshost.admin.command('serverStatus')
+        else:
+           ss=self.client.admin.command('serverStatus')
         if "$configServerState" in ss:
            del ss["$configServerState"]
         if "$gleStats" in ss:
@@ -1157,8 +1173,12 @@ class MongodbDriver(AbstractDriver):
 
     def save_result(self, result_doc):
         self.result_doc.update(result_doc)
-        self.result_doc['after']=self.get_server_status()
-        # saving test results and server statuses ('before' and 'after') into MongoDB as a single document
-        self.client.test.results.insert_one(self.result_doc)
+        self.result_doc['after']=self.get_server_status(self.sshost)
+        # save cache size, instance type, version
+        self.result_doc['version']=self.result_doc['after']['version'][0:3]
+# {$trunc:{$divide:["$before.wiredTiger.cache.maximum bytes configured",1024*1024*1024]}},72]}}, {$set:{cacheGB:NumberLong(72)
+        #self.result_doc['cacheGB']=int(self.result_doc['after']['wiredTiger']['cache']['maximum bytes configured']/1073741824)
+        #self.result_doc['instance']={18:"M50",36:"M60",72:"M80"}.get(self.result_doc['cacheGB'], 'unknown')
+        self.client.test.results.save(self.result_doc)
 
 ## CLASS

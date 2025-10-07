@@ -36,7 +36,8 @@ import glob
 import time
 import multiprocessing
 import subprocess
-from configparser import ConfigParser
+import random
+from ConfigParser import SafeConfigParser
 from pprint import pprint, pformat
 
 from util import results, scaleparameters
@@ -99,7 +100,10 @@ def getDrivers():
 ## DEF
 
 ## ==============================================
-## startLoading
+## startLoading. 
+# This intentionally uses multiprocess pool and intentionally stats new processes for each batch
+# becuase for long running, many hour long loads, the connection between the child process and the parent process is lost  
+# and the parent block indefinitelly waiting for the result.
 ## ==============================================
 def startLoading(driverClass, scaleParameters, args, config):
     """
@@ -199,10 +203,7 @@ def startExecution(driverClass, scaleParameters, args, config):
     logging.debug("Creating client pool with %d processes", args['clients'])
     pool = multiprocessing.Pool(args['clients'])
     debug = logging.getLogger().isEnabledFor(logging.DEBUG)
-    try:
-        del args['config']
-    except KeyError:
-        print()
+
     worker_results = []
     for _ in range(args['clients']):
         r = pool.apply_async(executorFunc, (driverClass, scaleParameters, args, config, debug,))
@@ -236,7 +237,7 @@ def executorFunc(driverClass, scaleParameters, args, config, debug):
     config['reset'] = False
     driver.loadConfig(config)
 
-    e = executor.Executor(driver, scaleParameters, stop_on_error=args['stop_on_error'])
+    e = executor.Executor(driver, scaleParameters, stop_on_error=args['stop_on_error'], sameWH=args['samewh'])
     driver.executeStart()
     results = e.execute(args['duration'])
     driver.executeFinish()
@@ -257,6 +258,8 @@ if __name__ == '__main__':
                          help='Instruct the driver to reset the contents of the database')
     aparser.add_argument('--scalefactor', default=1, type=float, metavar='SF',
                          help='Benchmark scale factor')
+    aparser.add_argument('--samewh', default=85, type=float, metavar='PP',
+                         help='Percent paying same warehouse')
     aparser.add_argument('--warehouses', default=4, type=int, metavar='W',
                          help='Number of Warehouses')
     aparser.add_argument('--duration', default=60, type=int, metavar='D',
@@ -295,7 +298,7 @@ if __name__ == '__main__':
     ## Load Configuration file
     if args['config']:
         logging.debug("Loading configuration file '%s'", args['config'])
-        cparser = ConfigParser()
+        cparser = SafeConfigParser()
         cparser.read(os.path.realpath(args['config'].name))
         config = dict(cparser.items(args['system']))
     else:
@@ -342,7 +345,7 @@ if __name__ == '__main__':
     if not args['no_execute']:
         noftifyDsiOfPhaseStart("TPC-C_workload")
         if args['clients'] == 1:
-            e = executor.Executor(driver, scaleParameters, stop_on_error=args['stop_on_error'])
+            e = executor.Executor(driver, scaleParameters, stop_on_error=args['stop_on_error'], sameWH=args['samewh'])
             driver.executeStart()
             results = e.execute(args['duration'])
             driver.executeFinish()
@@ -351,7 +354,7 @@ if __name__ == '__main__':
         assert results, "No results from execution for %d client!" % args['clients']
         logging.info("Final Results")
         logging.info("Threads: %d", args['clients'])
-        logging.info(results.show(load_time, driver, args['clients']))
+        logging.info(results.show(load_time, driver, args['clients'], args['samewh']))
         noftifyDsiOfPhaseEnd("TPC-C_workload")
     ## IF
 

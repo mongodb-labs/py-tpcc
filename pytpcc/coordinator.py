@@ -132,6 +132,8 @@ if __name__ == '__main__':
     aparser.add_argument('--clientprocs', default=1, type=int, metavar='N',
                          help='Number of processes on each client node.')
 
+    aparser.add_argument('--samewh', default=85, type=float, metavar='PP',
+                         help='Percent paying same warehouse')
     aparser.add_argument('--stop-on-error', action='store_true',
                          help='Stop the transaction execution when the driver throws an exception.')
     aparser.add_argument('--no-load', action='store_true',
@@ -160,7 +162,7 @@ if __name__ == '__main__':
     ## Load Configuration file
     if args['config']:
         logging.debug("Loading configuration file '%s'" % args['config'])
-        cparser = ConfigParser()
+        cparser = SafeConfigParser()
         cparser.read(os.path.realpath(args['config'].name))
         config = dict(cparser.items(args['system']))
     else:
@@ -171,6 +173,7 @@ if __name__ == '__main__':
     config['load'] = False
     config['execute'] = False
     if config['reset']: logging.info("Reseting database")
+    config['warehouses'] = args['warehouses']
     driver.loadConfig(config)
     logging.info("Initializing TPC-C benchmark using %s" % driver)
 
@@ -208,8 +211,8 @@ if __name__ == '__main__':
     if not args['no_execute']:
         results = startExecution(scaleParameters, args, config,channels)
         assert results
-        logging.info(results.show(load_time, driver, len(channels)))
-        print results.show(load_time, driver, len(channels))
+        logging.info(results.show(load_time, driver, len(channels), args['samewh']))
+        print(results.show(load_time, driver, len(channels), args['samewh']))
     ## IF
 
 ## MAIN
