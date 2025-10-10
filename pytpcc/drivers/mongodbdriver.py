@@ -193,17 +193,17 @@ TABLE_INDEXES = {
 ## ==============================================
 class MongodbDriver(AbstractDriver):
     DEFAULT_CONFIG = {
-        "uri":              ("The mongodb connection string or URI", "mongodb://localhost:27017"),
-        "name":             ("Database name", "tpcc"),
-        "denormalize":      ("If true, data will be denormalized using MongoDB schema design best practices", True),
-        "notransactions":   ("If true, transactions will not be used (benchmarking only)", False),
-        "findandmodify":    ("If true, all things to update will be fetched via findAndModify", True),
-        "agg":              ("If true, aggregation queries will be used", False),
-        "secondary_reads":  ("If true, we will allow secondary reads", True),
-        "retry_writes":     ("If true, we will enable retryable writes", True),
-        "causal_consistency":  ("If true, we will perform causal reads ", True),
-        "no_global_items":  ("If true, we will have use only one 'unsharded' items collection", False),
-        "shards":           ("If >0 then sharded", "0")
+        "uri":                ("The mongodb connection string or URI", "mongodb://localhost:27017"),
+        "name":               ("Database name", "tpcc"),
+        "denormalize":        ("If true, data will be denormalized using MongoDB schema design best practices", True),
+        "notransactions":     ("If true, transactions will not be used (benchmarking only)", False),
+        "findandmodify":      ("If true, all things to update will be fetched via findAndModify", True),
+        "agg":                ("If true, aggregation queries will be used", False),
+        "secondary_reads":    ("If true, we will allow secondary reads", True),
+        "retry_writes":       ("If true, we will enable retryable writes", True),
+        "causal_consistency": ("If true, we will perform causal reads ", True),
+        "no_global_items":    ("If true, we will have use only one 'unsharded' items collection", False),
+        "shards":             ("If > 0 then sharded", "0")
     }
     DENORMALIZED_TABLES = [
         constants.TABLENAME_ORDERS,
