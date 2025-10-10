@@ -38,9 +38,10 @@ import urllib
 from pprint import pformat
 from time import sleep
 import pymongo
+from pymongo.client_session import TransactionOptions
 
 import constants
-from abstractdriver import AbstractDriver
+from .abstractdriver import AbstractDriver
 
 TABLE_COLUMNS = {
     constants.TABLENAME_ITEM: [
@@ -235,7 +236,6 @@ class MongodbDriver(AbstractDriver):
         self.warehouses = 0
         self.no_global_items = False
         self.shards = 0
-        self.sshost = None
 
         ## Create member mapping to collections
         for name in constants.ALL_TABLES:
@@ -304,19 +304,12 @@ class MongodbDriver(AbstractDriver):
         real_uri = uri[0:pindex]+userpassword+uri[pindex:]
         display_uri = uri[0:pindex]+usersecret+uri[pindex:]
 
-        # for extra URL to mongos
-        if userpassword == "" and ':' in uri[pindex:] and '@' in uri[pindex:]:
-            at = uri.index('@',pindex)
-            userpassword = uri[(pindex):(at+1)]
         self.client = pymongo.MongoClient(real_uri,
                                           retryWrites=self.retry_writes,
                                           readPreference=self.read_preference,
                                           readConcernLevel=self.read_concern)
 
         self.result_doc['before']=self.get_server_status()
-        ssURI="mongodb://"+userpassword+self.result_doc['before']['host']+"/test?ssl=true&authSource=admin"
-        logging.debug("%s %s %s", userpassword, self.result_doc['before']['host'], ssURI)
-        self.sshost = pymongo.MongoClient(ssURI)
 
         # set default writeConcern on the database
         self.database = self.client.get_database(name=str(config['name']), write_concern=self.write_concern)
@@ -412,7 +405,7 @@ class MongodbDriver(AbstractDriver):
                     ww = range(1,self.warehouses+1, int(self.warehouses/self.shards))
                 else:
                     ww = [0]
-                # print self.shards, self.warehouses, ww
+
                 for t in tuples:
                     for w in ww:
                        t2 = list(t)
@@ -429,7 +422,6 @@ class MongodbDriver(AbstractDriver):
         return
 
     def loadFinishDistrict(self, w_id, d_id):
-        logging.debug("LoadFinishDistrict")
         if self.denormalize:
             logging.debug("Pushing %d denormalized ORDERS records for WAREHOUSE %d DISTRICT %d into MongoDB", len(self.w_orders), w_id, d_id)
             self.database[constants.TABLENAME_ORDERS].insert_many(self.w_orders.values(), ordered=False)
@@ -437,7 +429,7 @@ class MongodbDriver(AbstractDriver):
         ## IF
 
     def loadFinish(self):
-        logging.debug("load finish: ")
+        logging.debug("Load finished")
 
     def executeStart(self):
         """Optional callback before the execution for each client starts"""
@@ -681,7 +673,7 @@ class MongodbDriver(AbstractDriver):
         ## If all of the items are at the same warehouse, then we'll issue a single
         ## request to get their information, otherwise we'll still issue a single request
         ## ----------------
-        item_w_list = zip(i_ids, i_w_ids)
+        item_w_list = list(zip(i_ids, i_w_ids))
         stock_project = {"_id":0, "S_I_ID": 1, "S_W_ID": 1,
                          "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1,
                          "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}
@@ -1096,9 +1088,9 @@ class MongodbDriver(AbstractDriver):
             ol_ids.add(ol["OL_I_ID"])
         ## FOR
 
-        result = self.stock.find({"S_W_ID": w_id,
+        result = self.stock.count_documents({"S_W_ID": w_id,
                                   "S_I_ID": {"$in": list(ol_ids)},
-                                  "S_QUANTITY": {"$lt": threshold}, "$comment": comment}).count()
+                                  "S_QUANTITY": {"$lt": threshold}, "$comment": comment})
 
         return int(result)
 
@@ -1127,7 +1119,7 @@ class MongodbDriver(AbstractDriver):
     # Should we retry txns within the same session or start a new one?
     def run_transaction_with_retries(self, txn_callback, name, params):
         txn_retry_counter = 0
-        to = pymongo.client_session.TransactionOptions(
+        to = TransactionOptions(
             read_concern=None,
             #read_concern=pymongo.read_concern.ReadConcern("snapshot"),
             write_concern=self.write_concern,
@@ -1150,11 +1142,8 @@ class MongodbDriver(AbstractDriver):
                 logging.debug("txn retry number for %s: %d", name, txn_retry_counter)
             ## WHILE
 
-    def get_server_status(self, otherClient=None):
-        if otherClient and self.sshost:
-           ss=self.sshost.admin.command('serverStatus')
-        else:
-           ss=self.client.admin.command('serverStatus')
+    def get_server_status(self):
+        ss=self.client.admin.command('serverStatus')
         if "$configServerState" in ss:
            del ss["$configServerState"]
         if "$gleStats" in ss:
@@ -1173,12 +1162,8 @@ class MongodbDriver(AbstractDriver):
 
     def save_result(self, result_doc):
         self.result_doc.update(result_doc)
-        self.result_doc['after']=self.get_server_status(self.sshost)
-        # save cache size, instance type, version
-        self.result_doc['version']=self.result_doc['after']['version'][0:3]
-# {$trunc:{$divide:["$before.wiredTiger.cache.maximum bytes configured",1024*1024*1024]}},72]}}, {$set:{cacheGB:NumberLong(72)
-        #self.result_doc['cacheGB']=int(self.result_doc['after']['wiredTiger']['cache']['maximum bytes configured']/1073741824)
-        #self.result_doc['instance']={18:"M50",36:"M60",72:"M80"}.get(self.result_doc['cacheGB'], 'unknown')
-        self.client.test.results.save(self.result_doc)
+        self.result_doc['after']=self.get_server_status()
+        # saving test results and server statuses ('before' and 'after') into MongoDB as a single document
+        self.client.test.results.insert_one(self.result_doc)
 
 ## CLASS

@@ -37,7 +37,7 @@ import time
 import multiprocessing
 import subprocess
 import random
-from ConfigParser import SafeConfigParser
+from configparser import ConfigParser
 from pprint import pprint, pformat
 
 from util import results, scaleparameters
@@ -56,12 +56,12 @@ console.setFormatter(logging.Formatter(
 logging.getLogger('').addHandler(console)
 
 NOTIFY_PHASE_START_PATH = '/data/workdir/src/flamegraph/notify_phase_start.py'
-NOTIFY_PHASE_END_PATH = '/data/workdir/src/flamegraph/notify_phase_start.py'
+NOTIFY_PHASE_END_PATH = '/data/workdir/src/flamegraph/notify_phase_end.py'
 
 ## ==============================================
-## noftifyDsiOfPhaseStart
+## notifyDSIOfPhaseStart
 ## ==============================================
-def noftifyDsiOfPhaseStart(phasename):
+def notifyDSIOfPhaseStart(phasename):
     if os.path.isfile(NOTIFY_PHASE_START_PATH):
         output = subprocess.run(["python3", NOTIFY_PHASE_START_PATH, phasename], capture_output=True)
         if output.returncode != 0:
@@ -69,9 +69,9 @@ def noftifyDsiOfPhaseStart(phasename):
 ## DEF
 
 ## ==============================================
-## noftifyDsiOfPhaseStart
+## notifyDSIOfPhaseEnd
 ## ==============================================
-def noftifyDsiOfPhaseEnd(phasename):
+def notifyDSIOfPhaseEnd(phasename):
     if os.path.isfile(NOTIFY_PHASE_END_PATH):
         output = subprocess.run(["python3", NOTIFY_PHASE_END_PATH, phasename], capture_output=True)
         if output.returncode != 0:
@@ -119,10 +119,6 @@ def startLoading(driverClass, scaleParameters, args, config):
     logging.debug(f"Total warehouses: {total_warehouses}")
 
     loader_results = []
-    try:
-        del args['config']
-    except KeyError:
-        logging.warning("Key 'config' not found in args")
 
     # Iterate through warehouses, processing them in batches of 'clients'
     for i in range(total_warehouses):
@@ -252,7 +248,7 @@ if __name__ == '__main__':
     aparser = argparse.ArgumentParser(description='Python implementation of the TPC-C Benchmark')
     aparser.add_argument('system', choices=getDrivers(),
                          help='Target system driver')
-    aparser.add_argument('--config', type=open,
+    aparser.add_argument('--config', type=str,
                          help='Path to driver configuration file')
     aparser.add_argument('--reset', action='store_true',
                          help='Instruct the driver to reset the contents of the database')
@@ -296,10 +292,11 @@ if __name__ == '__main__':
         sys.exit(0)
 
     ## Load Configuration file
-    if args['config']:
-        logging.debug("Loading configuration file '%s'", args['config'])
-        cparser = SafeConfigParser()
-        cparser.read(os.path.realpath(args['config'].name))
+    configFilePath = args['config']
+    if configFilePath:
+        logging.debug("Loading configuration file '%s'", configFilePath)
+        cparser = ConfigParser()
+        cparser.read(os.path.realpath(configFilePath))
         config = dict(cparser.items(args['system']))
     else:
         logging.debug("Using default configuration for %s", args['system'])
@@ -323,7 +320,7 @@ if __name__ == '__main__':
     load_time = None
     if not args['no_load']:
         logging.info("Loading TPC-C benchmark data using %s", (driver))
-        noftifyDsiOfPhaseStart("TPC-C_load")
+        notifyDSIOfPhaseStart("TPC-C_load")
         load_start = time.time()
         if args['clients'] == 1:
             l = loader.Loader(
@@ -338,12 +335,12 @@ if __name__ == '__main__':
         else:
             startLoading(driverClass, scaleParameters, args, config)
         load_time = time.time() - load_start
-        noftifyDsiOfPhaseEnd("TPC-C_load")
+        notifyDSIOfPhaseEnd("TPC-C_load")
     ## IF
 
     ## WORKLOAD DRIVER!!!
     if not args['no_execute']:
-        noftifyDsiOfPhaseStart("TPC-C_workload")
+        notifyDSIOfPhaseStart("TPC-C_workload")
         if args['clients'] == 1:
             e = executor.Executor(driver, scaleParameters, stop_on_error=args['stop_on_error'], sameWH=args['samewh'])
             driver.executeStart()
@@ -355,7 +352,7 @@ if __name__ == '__main__':
         logging.info("Final Results")
         logging.info("Threads: %d", args['clients'])
         logging.info(results.show(load_time, driver, args['clients'], args['samewh']))
-        noftifyDsiOfPhaseEnd("TPC-C_workload")
+        notifyDSIOfPhaseEnd("TPC-C_workload")
     ## IF
 
 ## MAIN

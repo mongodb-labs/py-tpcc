@@ -16,6 +16,32 @@ The structure of the repo is:
 All the tests were run using [MongoDB Atlas](https://www.mongodb.com/cloud/atlas?jmp=VLDB2019).
 Use code `VLDB2019` to get $150 credit to get started with MongoDB Atlas.
 
+## Sharded MongoDB Driver
+
+1. Define $MONGOURI env variable and point it to your MongoDB server
+ export MONGOURI="mongodb://username:password@10.2.1.119:27017/admin?ssl=true&tlsAllowInvalidHostnames=true&tlsAllowInvalidCertificates=true"
+
+2. Define $MONGOBIN env variable and point it to your MongoDB server
+ export MONGOBIN=/ddata/workdir/bin
+
+3. Run shardColl.sh
+ ./shardColl.sh 180 3
+
+4. Run pytpcc using --warehouses=XXX
+   NEVER USE --reset because that will dete the shard configuration by dropping the database. If you need to reset use step 3
+
+   Only load the data
+   python ./tpcc.py --no-execute --clients=100 --duration=10 --warehouses=180 --config=mongodb.config mongodb --stop-on-error
+   
+   Execute the tests without loading data.
+   python ./tpcc.py --no-load --clients=100 --duration=10 --warehouses=180 --config=mongodb.config mongodb --stop-on-error
+
+   Execute the tests with loading
+   python ./tpcc.py --clients=100 --duration=10 --warehouses=180 --config=mongodb.config mongodb --stop-on-error
+
+
+
+
 
 ## Postgres JSONB Driver
 

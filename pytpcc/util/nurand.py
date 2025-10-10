@@ -29,7 +29,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 # -----------------------------------------------------------------------
 
-import rand
+from .import rand
 
 def makeForLoad():
     """Create random NURand constants, appropriate for loading the database."""

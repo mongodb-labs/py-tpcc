@@ -1,8 +1,16 @@
 #!/bin/bash
 # set MONGOBIN and MONGOURI environment variables before calling
+
+# The number of warehouses
 NUMW=$1
-DB=$2
-SHARDS=$3
+
+# Number os shards
+SHARDS=$2
+
+# The database name
+DB=$3
+
+
 if [ -z "$NUMW" ]
 then
     echo "Must specify number of warehouses"
@@ -10,8 +18,8 @@ then
 fi
 if [ -z "$DB" ]
 then
-    echo "No db passed in, using default"
-    DB=tpcc${NUMW}
+    echo "No db passed in, using default (tpcc)"
+    DB=tpcc
 fi
 if [ -z "$SHARDS" ]
 then
@@ -39,5 +47,4 @@ fi
 echo "$MONGO is mongo and $NUMW is warehouses $DB is DB, $MONGOURI is connection string and there are $SHARDS shards"
 
 sed "s/_NUMWAREHOUSES_/${NUMW}/" shardColl.js | sed "s/_SHARDS_/$SHARDS/" | sed "s/_DBNAME_/$DB/" > shardTemp.js
-$MONGO $MONGOURI shardTemp.js
-echo "Ran shardColl script with $1 $2 $3 - ready to load"
+$MONGO $MONGOURI --tls --tlsAllowInvalidHostnames --tlsAllowInvalidCertificates shardTemp.js
