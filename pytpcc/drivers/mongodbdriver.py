@@ -315,6 +315,11 @@ class MongodbDriver(AbstractDriver):
         self.database = self.client.get_database(name=str(config['name']), write_concern=self.write_concern)
         if self.denormalize:
             logging.debug("Using denormalized data model")
+        
+        # Don't reset the database if sharded configuration is set.
+        if config["reset"] and self.shards > 0:
+            logging.error("Error: resetting the dabatase is not supported with shard configuration. Use shardColl.sh instead.")
+            sys.exit(64)
 
         try:
             if config["reset"]:

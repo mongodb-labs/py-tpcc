@@ -98,7 +98,8 @@ shards               = 3
  ```
 
 4. Run pytpcc using --warehouses=XXX
-   NEVER USE --reset because that will dete the shard configuration by dropping the database. If you need to reset use step 3
+
+   NEVER USE `--reset` because that will dete the shard configuration by dropping the database. If you need to reset use step 3
 
    * Only load the data
    ```bash
