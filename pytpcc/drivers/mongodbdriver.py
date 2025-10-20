@@ -364,6 +364,7 @@ class MongodbDriver(AbstractDriver):
             print("Got some other error: %s" % str(err))
             return
         
+    @staticmethod
     def setup_sharded_db(client: pymongo.MongoClient, db_name: str, num_warehouses: int, num_shards: int = 0):
         if num_warehouses <= 0:
             raise ValueError("Error: Invalid number of warehouses. num_warehouses must be > 0")

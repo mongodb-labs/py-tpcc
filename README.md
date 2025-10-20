@@ -26,19 +26,23 @@ cd ~/python_envs
 ~/python_envs$ python -m venv py-tpcc-env
 source ~/python_envs/py-tpcc-env/bin/activate
 ```
+2. Install pymongo
 
-2. Print your config.
+```bash
+pip install pymongo 
+```
+
+3. Print your config.
 
 ```bash
 cd ~/py-tpcc/pytpcc
 ~/py-tpcc/pytpcc$ python ./tpcc.py --print-config mongodb > mongodb.config
 ```
 
-3. Edit the configuraiton for Postgres in the mongodb.config. 
+4. Edit the configuraiton for Postgres in the mongodb.config. 
    * Change shards to the number of `shards`
    * Change the mongodb connection `uri` string
    * Change the database `name`
-
 
 ```bash
 # MongodbDriver Configuration File
@@ -78,24 +82,6 @@ no_global_items      =
 # If > 0 then sharded
 shards               = 3
 ```
-
-
-1. Define $MONGOURI env variable and point it to your MongoDB server
- 
- ```bash
- export MONGOURI="mongodb://user:pass@10.2.1.119:27017/admin?ssl=true&tlsAllowInvalidHostnames=true&tlsAllowInvalidCertificates=true"
- ```
-
-2. Define $MONGOBIN env variable and point it to your MongoDB server
- ```bash
- export MONGOBIN=/ddata/workdir/bin
- ```
-
-
-3. Run shardColl.sh
- ```bash
- ./shardColl.sh 21 3
- ```
 
 4. Run pytpcc using --warehouses=XXX
 
