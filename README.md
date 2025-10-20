@@ -85,7 +85,10 @@ shards               = 3
 
 4. Run pytpcc using --warehouses=XXX
 
-   NEVER USE `--reset` because that will dete the shard configuration by dropping the database. If you need to reset use step 3
+   * Reset the database and load the data
+   ```bash
+   python ./tpcc.py --reset --no-execute --clients=100 --duration=10 --warehouses=21 --config=mongodb.config mongodb --stop-on-error
+   ```
 
    * Only load the data
    ```bash

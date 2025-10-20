@@ -320,7 +320,7 @@ class MongodbDriver(AbstractDriver):
         try:
             # Reset the current database and setup new dataase with sharded configuration
             if config["reset"] and self.shards > 0:
-                logging.info("Deleting the database and setting up a new sharded database'%s'", self.database.name)
+                logging.info("Deleting the database and setting up a new sharded database '%s'", self.database.name)
                 self.setup_sharded_db(self.client, str(config['name']), int(self.warehouses), self.shards)
                 return
             
