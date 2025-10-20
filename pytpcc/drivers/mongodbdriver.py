@@ -39,6 +39,7 @@ from pprint import pformat
 from time import sleep
 import pymongo
 from pymongo.client_session import TransactionOptions
+from bson import MinKey
 
 import constants
 from .abstractdriver import AbstractDriver
@@ -315,13 +316,14 @@ class MongodbDriver(AbstractDriver):
         self.database = self.client.get_database(name=str(config['name']), write_concern=self.write_concern)
         if self.denormalize:
             logging.debug("Using denormalized data model")
-        
-        # Don't reset the database if sharded configuration is set.
-        if config["reset"] and self.shards > 0:
-            logging.error("Error: resetting the dabatase is not supported with shard configuration. Use shardColl.sh instead.")
-            sys.exit(64)
 
         try:
+            # Reset the current database and setup new dataase with sharded configuration
+            if config["reset"] and self.shards > 0:
+                logging.info("Deleting the database and setting up a new sharded database'%s'", self.database.name)
+                self.setup_sharded_db(self.client, str(config['name']), int(self.warehouses), self.shards)
+                return
+            
             if config["reset"]:
                 logging.info("Deleting database '%s'", self.database.name)
                 for name in constants.ALL_TABLES:
@@ -361,6 +363,80 @@ class MongodbDriver(AbstractDriver):
             logging.error("Some general error (%s) when connected to %s: ", str(err), display_uri)
             print("Got some other error: %s" % str(err))
             return
+        
+    def setup_sharded_db(client: pymongo.MongoClient, db_name: str, num_warehouses: int, num_shards: int = 0):
+        if num_warehouses <= 0:
+            raise ValueError("Error: Invalid number of warehouses. num_warehouses must be > 0")
+        
+        admin = client.admin
+        config_db = client['config']
+        
+        admin.command('balancerStop', 1)
+        db = client[db_name]
+        db.command('dropDatabase')
+        sleep(10)
+        
+        admin.command('enableSharding', db_name)
+        
+        admin.command('shardCollection', f'{db_name}.ITEM', key={'I_W_ID': 1, 'I_ID': 1}, unique=True)
+        
+        db['WAREHOUSE'].create_index([('W_ID', 1), ('W_TAX', 1)], unique=True)
+        admin.command('shardCollection', f'{db_name}.WAREHOUSE', key={'W_ID': 1})
+        
+        db['DISTRICT'].create_index([('D_W_ID', 1), ('D_ID', 1), ('D_NEXT_O_ID', 1), ('D_TAX', 1)], unique=True)
+        admin.command('shardCollection', f'{db_name}.DISTRICT', key={'D_W_ID': 1, 'D_ID': 1})
+        
+        admin.command('shardCollection', f'{db_name}.CUSTOMER', key={'C_W_ID': 1, 'C_D_ID': 1, 'C_ID': 1}, unique=True)
+        
+        admin.command('shardCollection', f'{db_name}.HISTORY', key={'H_W_ID': 1})
+        
+        admin.command('shardCollection', f'{db_name}.STOCK', key={'S_W_ID': 1, 'S_I_ID': 1}, unique=True)
+        
+        db['NEW_ORDER'].create_index([('NO_W_ID', 1), ('NO_D_ID', 1), ('NO_O_ID', 1)], unique=True)
+        admin.command('shardCollection', f'{db_name}.NEW_ORDER', key={'NO_W_ID': 1, 'NO_D_ID': 1})
+        
+        db['ORDERS'].create_index([('O_W_ID', 1), ('O_D_ID', 1), ('O_ID', 1), ('O_C_ID', 1)], unique=True)
+        admin.command('shardCollection', f'{db_name}.ORDERS', key={'O_W_ID': 1, 'O_D_ID': 1, 'O_ID': 1})
+        
+        if num_shards <= 0:
+            logging.info("Warning: Shards argument is not positive. Getting shards from the cluster")
+            num_shards = config_db['shards'].count_documents({})
+        
+        remainder = num_warehouses % num_shards
+        if remainder != 0:
+            raise ValueError(f"ERROR: Number of Warehouses ({num_warehouses}) is not a multiple of the number of shards ({num_shards})")
+        
+        wh_per_shard = num_warehouses // num_shards
+        logging.info(f"Using ({num_warehouses}) warehouses with {wh_per_shard} per shard")
+        
+        # Do splits
+        for i in range(1 + wh_per_shard, num_warehouses, wh_per_shard):
+            logging.info(f"Splitting at {i}")
+            admin.command('split', f'{db_name}.ITEM', middle={'I_W_ID': i, 'I_ID': MinKey()})
+            admin.command('split', f'{db_name}.WAREHOUSE', middle={'W_ID': i})
+            admin.command('split', f'{db_name}.HISTORY', middle={'H_W_ID': i})
+            admin.command('split', f'{db_name}.DISTRICT', middle={'D_W_ID': i, 'D_ID': MinKey()})
+            admin.command('split', f'{db_name}.CUSTOMER', middle={'C_W_ID': i, 'C_D_ID': MinKey(), 'C_ID': MinKey()})
+            admin.command('split', f'{db_name}.STOCK', middle={'S_W_ID': i, 'S_I_ID': MinKey()})
+            admin.command('split', f'{db_name}.NEW_ORDER', middle={'NO_W_ID': i, 'NO_D_ID': MinKey()})
+            admin.command('split', f'{db_name}.ORDERS', middle={'O_W_ID': i, 'O_D_ID': MinKey(), 'O_ID': MinKey()})
+        
+        # Do moves
+        shards = config_db['shards'].distinct('_id')
+        for i in range(num_shards):
+            key = i * wh_per_shard + 1
+            shd = shards[i]
+            logging.info(f"Moving {key} to shard {shd}")
+            admin.command('moveChunk', f'{db_name}.ITEM', find={'I_W_ID': key, 'I_ID': MinKey()}, to=shd)
+            admin.command('moveChunk', f'{db_name}.WAREHOUSE', find={'W_ID': key}, to=shd)
+            admin.command('moveChunk', f'{db_name}.HISTORY', find={'H_W_ID': key}, to=shd)
+            admin.command('moveChunk', f'{db_name}.DISTRICT', find={'D_W_ID': key, 'D_ID': MinKey()}, to=shd)
+            admin.command('moveChunk', f'{db_name}.CUSTOMER', find={'C_W_ID': key, 'C_D_ID': MinKey(), 'C_ID': MinKey()}, to=shd)
+            admin.command('moveChunk', f'{db_name}.STOCK', find={'S_W_ID': key, 'S_I_ID': MinKey()}, to=shd)
+            admin.command('moveChunk', f'{db_name}.NEW_ORDER', find={'NO_W_ID': key, 'NO_D_ID': MinKey()}, to=shd)
+            admin.command('moveChunk', f'{db_name}.ORDERS', find={'O_W_ID': key, 'O_D_ID': MinKey(), 'O_ID': MinKey()}, to=shd)
+        
+        logging.info("Shard configuration succeeded")
 
     ## ----------------------------------------------
     ## loadTuples
