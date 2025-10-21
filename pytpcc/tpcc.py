@@ -101,9 +101,9 @@ def getDrivers():
 
 ## ==============================================
 ## startLoading. 
-# This intentionally uses multiprocess pool and intentionally stats new processes for each batch
-# becuase for long running, many hour long loads, the connection between the child process and the parent process is lost  
-# and the parent block indefinitelly waiting for the result.
+# This intentionally uses multiprocess pool and intentionally starts new processes for each batch
+# because for long running, many hour long loads, the connection between the child process and the parent process is lost  
+# and the parent process blocks indefinitelly waiting for the result.
 ## ==============================================
 def startLoading(driverClass, scaleParameters, args, config):
     """
