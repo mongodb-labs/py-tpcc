@@ -39,7 +39,7 @@ cd ~/py-tpcc/pytpcc
 ~/py-tpcc/pytpcc$ python ./tpcc.py --print-config mongodb > mongodb.config
 ```
 
-4. Edit the configuraiton for Postgres in the mongodb.config. 
+4. Edit the configuration for Postgres in the mongodb.config. 
    * Change shards to the number of `shards`
    * Change the mongodb connection `uri` string
    * Change the database `name`
