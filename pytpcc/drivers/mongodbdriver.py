@@ -39,10 +39,7 @@ from pprint import pformat
 from time import sleep
 import pymongo
 from pymongo.client_session import TransactionOptions
-
-# Import TransactionOptions from pymongo.client_session or
-# pymongo.synchronous.client_session depending on the version of pymongo
-from pymongo.client_session import TransactionOptions
+from bson import MinKey
 
 import constants
 from .abstractdriver import AbstractDriver
@@ -197,16 +194,17 @@ TABLE_INDEXES = {
 ## ==============================================
 class MongodbDriver(AbstractDriver):
     DEFAULT_CONFIG = {
-        "uri":              ("The mongodb connection string or URI", "mongodb://localhost:27017"),
-        "name":             ("Database name", "tpcc"),
-        "denormalize":      ("If true, data will be denormalized using MongoDB schema design best practices", True),
-        "notransactions":   ("If true, transactions will not be used (benchmarking only)", False),
-        "findandmodify":    ("If true, all things to update will be fetched via findAndModify", True),
-        "agg":              ("If true, aggregation queries will be used", False),
-        "secondary_reads":  ("If true, we will allow secondary reads", True),
-        "retry_writes":     ("If true, we will enable retryable writes", True),
-        "causal_consistency":  ("If true, we will perform causal reads ", True),
-        "shards":          ("If >1 then sharded", "1")
+        "uri":                ("The mongodb connection string or URI", "mongodb://localhost:27017"),
+        "name":               ("Database name", "tpcc"),
+        "denormalize":        ("If true, data will be denormalized using MongoDB schema design best practices", True),
+        "notransactions":     ("If true, transactions will not be used (benchmarking only)", False),
+        "findandmodify":      ("If true, all things to update will be fetched via findAndModify", True),
+        "agg":                ("If true, aggregation queries will be used", False),
+        "secondary_reads":    ("If true, we will allow secondary reads", True),
+        "retry_writes":       ("If true, we will enable retryable writes", True),
+        "causal_consistency": ("If true, we will perform causal reads ", True),
+        "no_global_items":    ("If true, we will have use only one 'unsharded' items collection", False),
+        "shards":             ("If > 0 then sharded", "0")
     }
     DENORMALIZED_TABLES = [
         constants.TABLENAME_ORDERS,
@@ -237,7 +235,8 @@ class MongodbDriver(AbstractDriver):
         self.output = open('results.json','a')
         self.result_doc = {}
         self.warehouses = 0
-        self.shards = 1
+        self.no_global_items = False
+        self.shards = 0
 
         ## Create member mapping to collections
         for name in constants.ALL_TABLES:
@@ -270,6 +269,7 @@ class MongodbDriver(AbstractDriver):
         self.warehouses = config['warehouses']
         self.find_and_modify = config['findandmodify'] == 'True'
         self.causal_consistency = config['causal_consistency'] == 'True'
+        self.no_global_items = config['no_global_items'] == 'True'
         self.retry_writes = config['retry_writes'] == 'True'
         self.secondary_reads = config['secondary_reads'] == 'True'
         self.agg = config['agg'] == 'True'
@@ -318,6 +318,12 @@ class MongodbDriver(AbstractDriver):
             logging.debug("Using denormalized data model")
 
         try:
+            # Reset the current database and setup new dataase with sharded configuration
+            if config["reset"] and self.shards > 0:
+                logging.info("Deleting the database and setting up a new sharded database '%s'", self.database.name)
+                self.setup_sharded_db(self.client, str(config['name']), int(self.warehouses), self.shards)
+                return
+            
             if config["reset"]:
                 logging.info("Deleting database '%s'", self.database.name)
                 for name in constants.ALL_TABLES:
@@ -357,6 +363,81 @@ class MongodbDriver(AbstractDriver):
             logging.error("Some general error (%s) when connected to %s: ", str(err), display_uri)
             print("Got some other error: %s" % str(err))
             return
+        
+    @staticmethod
+    def setup_sharded_db(client: pymongo.MongoClient, db_name: str, num_warehouses: int, num_shards: int = 0):
+        if num_warehouses <= 0:
+            raise ValueError("Error: Invalid number of warehouses. num_warehouses must be > 0")
+        
+        admin = client.admin
+        config_db = client['config']
+        
+        admin.command('balancerStop', 1)
+        db = client[db_name]
+        db.command('dropDatabase')
+        sleep(10)
+        
+        admin.command('enableSharding', db_name)
+        
+        admin.command('shardCollection', f'{db_name}.ITEM', key={'I_W_ID': 1, 'I_ID': 1}, unique=True)
+        
+        db['WAREHOUSE'].create_index([('W_ID', 1), ('W_TAX', 1)], unique=True)
+        admin.command('shardCollection', f'{db_name}.WAREHOUSE', key={'W_ID': 1})
+        
+        db['DISTRICT'].create_index([('D_W_ID', 1), ('D_ID', 1), ('D_NEXT_O_ID', 1), ('D_TAX', 1)], unique=True)
+        admin.command('shardCollection', f'{db_name}.DISTRICT', key={'D_W_ID': 1, 'D_ID': 1})
+        
+        admin.command('shardCollection', f'{db_name}.CUSTOMER', key={'C_W_ID': 1, 'C_D_ID': 1, 'C_ID': 1}, unique=True)
+        
+        admin.command('shardCollection', f'{db_name}.HISTORY', key={'H_W_ID': 1})
+        
+        admin.command('shardCollection', f'{db_name}.STOCK', key={'S_W_ID': 1, 'S_I_ID': 1}, unique=True)
+        
+        db['NEW_ORDER'].create_index([('NO_W_ID', 1), ('NO_D_ID', 1), ('NO_O_ID', 1)], unique=True)
+        admin.command('shardCollection', f'{db_name}.NEW_ORDER', key={'NO_W_ID': 1, 'NO_D_ID': 1})
+        
+        db['ORDERS'].create_index([('O_W_ID', 1), ('O_D_ID', 1), ('O_ID', 1), ('O_C_ID', 1)], unique=True)
+        admin.command('shardCollection', f'{db_name}.ORDERS', key={'O_W_ID': 1, 'O_D_ID': 1, 'O_ID': 1})
+        
+        if num_shards <= 0:
+            logging.info("Warning: Shards argument is not positive. Getting shards from the cluster")
+            num_shards = config_db['shards'].count_documents({})
+        
+        remainder = num_warehouses % num_shards
+        if remainder != 0:
+            raise ValueError(f"ERROR: Number of Warehouses ({num_warehouses}) is not a multiple of the number of shards ({num_shards})")
+        
+        wh_per_shard = num_warehouses // num_shards
+        logging.info(f"Using ({num_warehouses}) warehouses with {wh_per_shard} per shard")
+        
+        # Do splits
+        for i in range(1 + wh_per_shard, num_warehouses, wh_per_shard):
+            logging.info(f"Splitting at {i}")
+            admin.command('split', f'{db_name}.ITEM', middle={'I_W_ID': i, 'I_ID': MinKey()})
+            admin.command('split', f'{db_name}.WAREHOUSE', middle={'W_ID': i})
+            admin.command('split', f'{db_name}.HISTORY', middle={'H_W_ID': i})
+            admin.command('split', f'{db_name}.DISTRICT', middle={'D_W_ID': i, 'D_ID': MinKey()})
+            admin.command('split', f'{db_name}.CUSTOMER', middle={'C_W_ID': i, 'C_D_ID': MinKey(), 'C_ID': MinKey()})
+            admin.command('split', f'{db_name}.STOCK', middle={'S_W_ID': i, 'S_I_ID': MinKey()})
+            admin.command('split', f'{db_name}.NEW_ORDER', middle={'NO_W_ID': i, 'NO_D_ID': MinKey()})
+            admin.command('split', f'{db_name}.ORDERS', middle={'O_W_ID': i, 'O_D_ID': MinKey(), 'O_ID': MinKey()})
+        
+        # Do moves
+        shards = config_db['shards'].distinct('_id')
+        for i in range(num_shards):
+            key = i * wh_per_shard + 1
+            shd = shards[i]
+            logging.info(f"Moving {key} to shard {shd}")
+            admin.command('moveChunk', f'{db_name}.ITEM', find={'I_W_ID': key, 'I_ID': MinKey()}, to=shd)
+            admin.command('moveChunk', f'{db_name}.WAREHOUSE', find={'W_ID': key}, to=shd)
+            admin.command('moveChunk', f'{db_name}.HISTORY', find={'H_W_ID': key}, to=shd)
+            admin.command('moveChunk', f'{db_name}.DISTRICT', find={'D_W_ID': key, 'D_ID': MinKey()}, to=shd)
+            admin.command('moveChunk', f'{db_name}.CUSTOMER', find={'C_W_ID': key, 'C_D_ID': MinKey(), 'C_ID': MinKey()}, to=shd)
+            admin.command('moveChunk', f'{db_name}.STOCK', find={'S_W_ID': key, 'S_I_ID': MinKey()}, to=shd)
+            admin.command('moveChunk', f'{db_name}.NEW_ORDER', find={'NO_W_ID': key, 'NO_D_ID': MinKey()}, to=shd)
+            admin.command('moveChunk', f'{db_name}.ORDERS', find={'O_W_ID': key, 'O_D_ID': MinKey(), 'O_ID': MinKey()}, to=shd)
+        
+        logging.info("Shard configuration succeeded")
 
     ## ----------------------------------------------
     ## loadTuples
@@ -402,10 +483,11 @@ class MongodbDriver(AbstractDriver):
         else:
             if tableName == constants.TABLENAME_ITEM:
                 tuples3 = []
-                if self.shards > 1:
-                    ww = range(1,self.warehouses+1)
+                if self.shards > 0:
+                    ww = range(1,self.warehouses+1, int(self.warehouses/self.shards))
                 else:
                     ww = [0]
+
                 for t in tuples:
                     for w in ww:
                        t2 = list(t)
@@ -415,7 +497,8 @@ class MongodbDriver(AbstractDriver):
             for t in tuples:
                 tuple_dicts.append(dict([(columns[i], t[i]) for i in num_columns]))
             ## FOR
-            self.database[tableName].insert_many(tuple_dicts)
+
+            self.database[tableName].insert_many(tuple_dicts, ordered=False)
         ## IF
 
         return
@@ -423,9 +506,12 @@ class MongodbDriver(AbstractDriver):
     def loadFinishDistrict(self, w_id, d_id):
         if self.denormalize:
             logging.debug("Pushing %d denormalized ORDERS records for WAREHOUSE %d DISTRICT %d into MongoDB", len(self.w_orders), w_id, d_id)
-            self.database[constants.TABLENAME_ORDERS].insert_many(self.w_orders.values())
+            self.database[constants.TABLENAME_ORDERS].insert_many(self.w_orders.values(), ordered=False)
             self.w_orders.clear()
         ## IF
+
+    def loadFinish(self):
+        logging.debug("Load finished")
 
     def executeStart(self):
         """Optional callback before the execution for each client starts"""
@@ -614,8 +700,10 @@ class MongodbDriver(AbstractDriver):
         d_next_o_id = d["D_NEXT_O_ID"]
 
         # fetch matching items and see if they are all valid
-        if self.shards > 1: i_w_id = w_id
+        if self.shards > 0: i_w_id = w_id-(w_id-1)%(self.warehouses/self.shards) # get_i_w(w_id)
         else: i_w_id = 0
+        if self.no_global_items:
+            i_w_id = 1
         items = list(self.item.find({"I_ID": {"$in": i_ids}, "I_W_ID": i_w_id, "$comment": comment},
                                     {"_id":0, "I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1},
                                     session=s))
@@ -628,8 +716,7 @@ class MongodbDriver(AbstractDriver):
             #print constants.INVALID_ITEM_MESSAGE + ", Aborting transaction (ok for 1%)"
             return None
         ## IF
-        xxi_ids = tuple(map(lambda o: o['I_ID'], items))
-        items = sorted(items, key=lambda x: xxi_ids.index(x['I_ID']))
+        items = sorted(items, key=lambda x: i_ids.index(x['I_ID']))
 
         # getWarehouseTaxRate
         w = self.warehouse.find_one({"W_ID": w_id, "$comment": comment}, {"_id":0, "W_TAX": 1}, session=s)
@@ -668,7 +755,7 @@ class MongodbDriver(AbstractDriver):
         ## If all of the items are at the same warehouse, then we'll issue a single
         ## request to get their information, otherwise we'll still issue a single request
         ## ----------------
-        item_w_list = zip(i_ids, i_w_ids)
+        item_w_list = list(zip(i_ids, i_w_ids))
         stock_project = {"_id":0, "S_I_ID": 1, "S_W_ID": 1,
                          "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1,
                          "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1}
@@ -684,8 +771,7 @@ class MongodbDriver(AbstractDriver):
                                               session=s))
         ## IF
         assert len(all_stocks) == ol_cnt, "all_stocks len %d != ol_cnt %d" % (len(all_stocks), ol_cnt)
-        xxxi_ids = tuple(map(lambda o: (o['S_I_ID'], o['S_W_ID']), all_stocks))
-        all_stocks = sorted(all_stocks, key=lambda x: xxxi_ids.index((x['S_I_ID'], x["S_W_ID"])))
+        all_stocks = sorted(all_stocks, key=lambda x: item_w_list.index((x['S_I_ID'], x["S_W_ID"])))
 
         ## ----------------
         ## Insert Order Line, Stock Item Information
@@ -784,7 +870,7 @@ class MongodbDriver(AbstractDriver):
 
         if self.batch_writes:
             if not self.denormalize:
-                self.order_line.insert_many(order_line_writes, session=s)
+                self.order_line.insert_many(order_line_writes, ordered=False, session=s)
             self.stock.bulk_write(stock_writes, session=s)
         ## IF
 
@@ -936,7 +1022,7 @@ class MongodbDriver(AbstractDriver):
                                       session=s)
         ## IF
 
-        search_fields = {"C_W_ID": w_id, "C_D_ID": d_id, "$comment": comment}
+        search_fields = {"C_W_ID": c_w_id, "C_D_ID": c_d_id, "$comment": comment}
         return_fields = {"C_BALANCE": 0, "C_YTD_PAYMENT": 0, "C_PAYMENT_CNT": 0}
 
         if c_id != None:
@@ -1137,6 +1223,7 @@ class MongodbDriver(AbstractDriver):
                 sleep(txn_retry_counter * .1)
                 logging.debug("txn retry number for %s: %d", name, txn_retry_counter)
             ## WHILE
+
     def get_server_status(self):
         ss=self.client.admin.command('serverStatus')
         if "$configServerState" in ss:

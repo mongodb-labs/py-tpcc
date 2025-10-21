@@ -16,6 +16,94 @@ The structure of the repo is:
 All the tests were run using [MongoDB Atlas](https://www.mongodb.com/cloud/atlas?jmp=VLDB2019).
 Use code `VLDB2019` to get $150 credit to get started with MongoDB Atlas.
 
+## Sharded MongoDB Driver
+
+1. Create ana activate a python env.
+
+```bash
+mkdir ~/python_envs
+cd ~/python_envs
+~/python_envs$ python -m venv py-tpcc-env
+source ~/python_envs/py-tpcc-env/bin/activate
+```
+2. Install pymongo
+
+```bash
+pip install pymongo 
+```
+
+3. Print your config.
+
+```bash
+cd ~/py-tpcc/pytpcc
+~/py-tpcc/pytpcc$ python ./tpcc.py --print-config mongodb > mongodb.config
+```
+
+4. Edit the configuraiton for Postgres in the mongodb.config. 
+   * Change shards to the number of `shards`
+   * Change the mongodb connection `uri` string
+   * Change the database `name`
+
+```bash
+# MongodbDriver Configuration File
+# Created 2025-10-08 14:18:24.378446
+[mongodb]
+
+# The mongodb connection string or URI
+uri                  = mongodb://user:pass@10.2.1.119:27017/admin?ssl=true&tlsAllowInvalidHostnames=true&tlsAllowInvalidCertificates=true
+
+# Database name
+name                 = tpcc
+
+# If true, data will be denormalized using MongoDB schema design best practices
+denormalize          = True
+
+# If true, transactions will not be used (benchmarking only)
+notransactions       =
+
+# If true, all things to update will be fetched via findAndModify
+findandmodify        = True
+
+# If true, aggregation queries will be used
+agg                  =
+
+# If true, we will allow secondary reads
+secondary_reads      = True
+
+# If true, we will enable retryable writes
+retry_writes         = True
+
+# If true, we will perform causal reads
+causal_consistency   = True
+
+# If true, we will have use only one 'unsharded' items collection
+no_global_items      =
+
+# If > 0 then sharded
+shards               = 3
+```
+
+4. Run pytpcc using --warehouses=XXX
+
+   * Reset the database and load the data
+   ```bash
+   python ./tpcc.py --reset --no-execute --clients=100 --duration=10 --warehouses=21 --config=mongodb.config mongodb --stop-on-error
+   ```
+
+   * Only load the data
+   ```bash
+   python ./tpcc.py --no-execute --clients=100 --duration=10 --warehouses=21 --config=mongodb.config mongodb --stop-on-error
+   ```
+   
+   * Execute the tests without loading data.
+   ```bash
+   python ./tpcc.py --no-load --clients=100 --duration=10 --warehouses=21 --config=mongodb.config mongodb --stop-on-error
+   ```
+
+   * Execute the tests with loading
+   ```bash
+   python ./tpcc.py --clients=100 --duration=10 --warehouses=21 --config=mongodb.config mongodb --stop-on-error
+   ```
 
 ## Postgres JSONB Driver
 

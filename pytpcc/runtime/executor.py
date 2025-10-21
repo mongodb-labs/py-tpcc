@@ -44,10 +44,11 @@ from util import *
 
 class Executor:
 
-    def __init__(self, driver, scaleParameters, stop_on_error = False):
+    def __init__(self, driver, scaleParameters, stop_on_error = False, sameWH = 85):
         self.driver = driver
         self.scaleParameters = scaleParameters
         self.stop_on_error = stop_on_error
+        self.same_wh = sameWH
     ## DEF
 
     def execute(self, duration):
@@ -76,8 +77,7 @@ class Executor:
                 batch_result.abortTransaction(batch_txn_id)
                 if self.stop_on_error: raise
                 continue
-            
-            # This will happen on all failing 1% of the transactions
+
             if val is None:
                 global_result.abortTransaction(global_txn_id, retries)
                 batch_result.abortTransaction(batch_txn_id, retries)
@@ -86,7 +86,7 @@ class Executor:
             batch_result.stopTransaction(batch_txn_id, retries)
             global_result.stopTransaction(global_txn_id, retries)
 
-            if time.time() - start_batch > 900: # every 15 minutes
+            if time.time() - start_batch > 1800: # every 30 minutes
                 batch_result.stopBenchmark()
                 logging.info(batch_result.show())
                 batch_result = results.Results()
@@ -221,7 +221,7 @@ class Executor:
         h_date = datetime.now()
 
         ## 85%: paying through own warehouse (or there is only 1 warehouse)
-        if self.scaleParameters.warehouses == 1 or x <= 85:
+        if self.scaleParameters.warehouses == 1 or x <= self.same_wh:
             c_w_id = w_id
             c_d_id = d_id
         ## 15%: paying through another warehouse:

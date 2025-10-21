@@ -38,7 +38,7 @@ import pickle
 import execnet
 import worker
 import message
-from ConfigParser import SafeConfigParser
+from configparser import ConfigParser
 from pprint import pprint, pformat
 
 from util import *
@@ -80,7 +80,7 @@ def startLoading(scalParameters,args,config,channels):
     for w_id in range(scaleParameters.starting_warehouse, scaleParameters.ending_warehouse+1):
         idx = w_id % procs
         w_ids[idx].append(w_id)
-    print w_ids
+    print(w_ids)
 
     load_start=time.time()
     for i in range(len(channels)):
@@ -116,7 +116,7 @@ if __name__ == '__main__':
     aparser = argparse.ArgumentParser(description='Python implementation of the TPC-C Benchmark')
     aparser.add_argument('system', choices=getDrivers(),
                          help='Target system driver')
-    aparser.add_argument('--config', type=file,
+    aparser.add_argument('--config', type=str,
                          help='Path to driver configuration file')
     aparser.add_argument('--reset', action='store_true',
                          help='Instruct the driver to reset the contents of the database')
@@ -132,6 +132,8 @@ if __name__ == '__main__':
     aparser.add_argument('--clientprocs', default=1, type=int, metavar='N',
                          help='Number of processes on each client node.')
 
+    aparser.add_argument('--samewh', default=85, type=float, metavar='PP',
+                         help='Percent paying same warehouse')
     aparser.add_argument('--stop-on-error', action='store_true',
                          help='Stop the transaction execution when the driver throws an exception.')
     aparser.add_argument('--no-load', action='store_true',
@@ -153,15 +155,16 @@ if __name__ == '__main__':
     assert driver != None, "Failed to create '%s' driver" % args['system']
     if args['print_config']:
         config = driver.makeDefaultConfig()
-        print driver.formatConfig(config)
-        print
+        print(driver.formatConfig(config))
+        print()
         sys.exit(0)
 
     ## Load Configuration file
-    if args['config']:
-        logging.debug("Loading configuration file '%s'" % args['config'])
+    configFilePath = args['config']
+    if configFilePath:
+        logging.debug("Loading configuration file '%s'" % configFilePath)
         cparser = ConfigParser()
-        cparser.read(os.path.realpath(args['config'].name))
+        cparser.read(os.path.realpath(configFilePath))
         config = dict(cparser.items(args['system']))
     else:
         logging.debug("Using default configuration for %s" % args['system'])
@@ -171,6 +174,7 @@ if __name__ == '__main__':
     config['load'] = False
     config['execute'] = False
     if config['reset']: logging.info("Reseting database")
+    config['warehouses'] = args['warehouses']
     driver.loadConfig(config)
     logging.info("Initializing TPC-C benchmark using %s" % driver)
 
@@ -208,8 +212,8 @@ if __name__ == '__main__':
     if not args['no_execute']:
         results = startExecution(scaleParameters, args, config,channels)
         assert results
-        logging.info(results.show(load_time, driver, len(channels)))
-        print results.show(load_time, driver, len(channels))
+        logging.info(results.show(load_time, driver, len(channels), args['samewh']))
+        print(results.show(load_time, driver, len(channels), args['samewh']))
     ## IF
 
 ## MAIN
