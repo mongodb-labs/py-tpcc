@@ -318,10 +318,19 @@ class MongodbDriver(AbstractDriver):
             logging.debug("Using denormalized data model")
 
         try:
+            # Debug logging
+            logging.info("DEBUG: config['reset'] = %s, self.shards = %s, self.warehouses = %s", 
+                        config.get("reset"), self.shards, self.warehouses)
+            
             # Reset the current database and setup new dataase with sharded configuration
             if config["reset"] and self.shards > 0:
                 logging.info("Deleting the database and setting up a new sharded database '%s'", self.database.name)
-                self.setup_sharded_db(self.client, str(config['name']), int(self.warehouses), self.shards)
+                try:
+                    self.setup_sharded_db(self.client, str(config['name']), int(self.warehouses), self.shards)
+                    logging.info("Sharding setup completed successfully")
+                except Exception as e:
+                    logging.error("Failed to setup sharded database: %s", str(e))
+                    raise
                 return
             
             if config["reset"]:
