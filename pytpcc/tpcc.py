@@ -119,10 +119,27 @@ def startLoading(driverClass, scaleParameters, args, config):
     logging.debug(f"Total warehouses: {total_warehouses}")
 
     loader_results = []
+    warehouse_ids = []
+    block_size = total_warehouses // clients
+
+    if(total_warehouses % clients != 0):
+       logging.warning(f"WARNING: clients and warehouses are not well aligned {total_warehouses % clients} warehouses will be processed sequentially")
+
+    ideal_ending_warehouse = scaleParameters.starting_warehouse + block_size * clients
+    # create an array of warehouse IDs to 
+    for i in range(block_size):
+        for w_id in range(scaleParameters.starting_warehouse + i, ideal_ending_warehouse, block_size):
+            logging.debug(f"adding warehouse {w_id} to warehouse_ids")
+            warehouse_ids.append(w_id)
+    # let's add all warehouses that are left
+    for w_id in range(ideal_ending_warehouse, scaleParameters.ending_warehouse + 1):
+        logging.debug(f"adding remaining warehouse {w_id} to warehouse_ids")
+        warehouse_ids.append(w_id)
+    assert len(warehouse_ids) == total_warehouses, "Mismatch in total warehouses and warehouse_ids length"
 
     # Iterate through warehouses, processing them in batches of 'clients'
-    for i in range(total_warehouses):
-        w_id = scaleParameters.starting_warehouse + i
+    for i in range(len(warehouse_ids)):
+        w_id = warehouse_ids[i]
         logging.debug(f"Processing warehouse {w_id} in batch {i // clients}")
 
         # Apply the loader function asynchronously for the current warehouse
