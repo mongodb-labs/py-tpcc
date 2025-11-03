@@ -310,7 +310,7 @@ class MongodbDriver(AbstractDriver):
                                           readPreference=self.read_preference,
                                           readConcernLevel=self.read_concern)
 
-        self.result_doc['before']=self.get_server_status()
+        #self.result_doc['before']=self.get_server_status()
 
         # set default writeConcern on the database
         self.database = self.client.get_database(name=str(config['name']), write_concern=self.write_concern)
@@ -518,6 +518,13 @@ class MongodbDriver(AbstractDriver):
             self.database[constants.TABLENAME_ORDERS].insert_many(self.w_orders.values(), ordered=False)
             self.w_orders.clear()
         ## IF
+
+    def cleanup(self):
+        """Close MongoDB client connection to free resources"""
+        if self.client:
+            logging.debug("Closing MongoDB client connection")
+            self.client.close()
+            self.client = None
 
     def loadFinish(self):
         logging.debug("Load finished")
@@ -1253,7 +1260,7 @@ class MongodbDriver(AbstractDriver):
 
     def save_result(self, result_doc):
         self.result_doc.update(result_doc)
-        self.result_doc['after']=self.get_server_status()
+        #self.result_doc['after']=self.get_server_status()
         # saving test results and server statuses ('before' and 'after') into MongoDB as a single document
         self.client.test.results.insert_one(self.result_doc)
 

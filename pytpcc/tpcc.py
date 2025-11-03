@@ -168,6 +168,12 @@ def startLoading(driverClass, scaleParameters, args, config):
 ## loaderFunc
 ## ==============================================
 def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
+    # Add random delay (1-10 seconds) to prevent thundering herd when all clients connect simultaneously
+    delay = random.uniform(1, 10)
+    logging.info("Client for warehouses %s: Delaying startup by %.2f seconds to stagger connections", w_ids, delay)
+    time.sleep(delay)
+
+
     driver = driverClass(args['ddl'])
     assert driver != None, "Driver in loadFunc is none!"
     logging.debug("Starting client execution: %s [warehouses=%d]", driver, len(w_ids))
@@ -189,6 +195,11 @@ def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
     except (Exception, AssertionError) as ex:
         logging.warn("Failed to load data: %s", ex)
         raise
+    finally:
+        # Ensure MongoDB client connection is properly closed
+        if hasattr(driver, 'cleanup'):
+            driver.cleanup()
+
 
 ## DEF
 
@@ -237,6 +248,9 @@ def executorFunc(driverClass, scaleParameters, args, config, debug):
     driver.executeStart()
     results = e.execute(args['duration'])
     driver.executeFinish()
+    # Ensure MongoDB client connection is properly closed
+    if hasattr(driver, 'cleanup'):
+        driver.cleanup()
 
     return results
 ## DEF
