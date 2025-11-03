@@ -305,15 +305,22 @@ class MongodbDriver(AbstractDriver):
         real_uri = uri[0:pindex]+userpassword+uri[pindex:]
         display_uri = uri[0:pindex]+usersecret+uri[pindex:]
 
+        logging.info("About to create MongoDB client connection...")
         self.client = pymongo.MongoClient(real_uri,
                                           retryWrites=self.retry_writes,
                                           readPreference=self.read_preference,
-                                          readConcernLevel=self.read_concern)
+                                          readConcernLevel=self.read_concern,
+                                          serverSelectionTimeoutMS=30000,  # 30 second timeout
+                                          connectTimeoutMS=20000,          # 20 second connection timeout
+                                          socketTimeoutMS=60000)           # 60 second socket timeout
+        logging.info("MongoDB client created successfully")
 
         #self.result_doc['before']=self.get_server_status()
 
         # set default writeConcern on the database
+        logging.info("Getting database handle...")
         self.database = self.client.get_database(name=str(config['name']), write_concern=self.write_concern)
+        logging.info("Database handle obtained successfully")
         if self.denormalize:
             logging.debug("Using denormalized data model")
 
@@ -326,7 +333,9 @@ class MongodbDriver(AbstractDriver):
             if config["reset"] and self.shards > 0:
                 logging.info("Deleting the database and setting up a new sharded database '%s'", self.database.name)
                 try:
-                    self.setup_sharded_db(self.client, str(config['name']), int(self.warehouses), self.shards)
+                    def _setup_sharded():
+                        self.setup_sharded_db(self.client, str(config['name']), int(self.warehouses), self.shards)
+                    self._retry_operation(_setup_sharded, "setup sharded database")
                     logging.info("Sharding setup completed successfully")
                 except Exception as e:
                     logging.error("Failed to setup sharded database: %s", str(e))
@@ -336,7 +345,9 @@ class MongodbDriver(AbstractDriver):
             if config["reset"]:
                 logging.info("Deleting database '%s'", self.database.name)
                 for name in constants.ALL_TABLES:
-                    self.database[name].drop()
+                    def _drop_collection():
+                        self.database[name].drop()
+                    self._retry_operation(_drop_collection, f"drop collection {name}")
                     logging.debug("Dropped collection %s", name)
                 ## FOR
             ## IF
@@ -344,6 +355,15 @@ class MongodbDriver(AbstractDriver):
             ## whether should check for indexes
             load_indexes = ('execute' in config and not config['execute']) and \
                            ('load' in config and not config['load'])
+            
+            logging.info("Index creation logic debug:")
+            logging.info("  config['execute'] = %s", config.get('execute'))
+            logging.info("  config['load'] = %s", config.get('load'))
+            logging.info("  ('execute' in config and not config['execute']) = %s", 
+                        ('execute' in config and not config['execute']))
+            logging.info("  ('load' in config and not config['load']) = %s", 
+                        ('load' in config and not config['load']))
+            logging.info("  load_indexes = %s", load_indexes)
 
             for name in constants.ALL_TABLES:
                 if self.denormalize and name == "ORDER_LINE":
@@ -352,7 +372,9 @@ class MongodbDriver(AbstractDriver):
                 if load_indexes and name in TABLE_INDEXES:
                     uniq = True
                     for index in TABLE_INDEXES[name]:
-                        self.database[name].create_index(index, unique=uniq)
+                        def _create_index():
+                            self.database[name].create_index(index, unique=uniq)
+                        self._retry_operation(_create_index, f"create index for {name}")
                         uniq = False
                 ## IF
             ## FOR
@@ -507,7 +529,10 @@ class MongodbDriver(AbstractDriver):
                 tuple_dicts.append(dict([(columns[i], t[i]) for i in num_columns]))
             ## FOR
 
-            self.database[tableName].insert_many(tuple_dicts, ordered=False)
+            def _insert_tuples():
+                self.database[tableName].insert_many(tuple_dicts, ordered=False)
+            
+            self._retry_operation(_insert_tuples, f"load tuples for {tableName}")
         ## IF
 
         return
@@ -515,7 +540,11 @@ class MongodbDriver(AbstractDriver):
     def loadFinishDistrict(self, w_id, d_id):
         if self.denormalize:
             logging.debug("Pushing %d denormalized ORDERS records for WAREHOUSE %d DISTRICT %d into MongoDB", len(self.w_orders), w_id, d_id)
-            self.database[constants.TABLENAME_ORDERS].insert_many(self.w_orders.values(), ordered=False)
+            if self.w_orders:  # Safety guard against empty collections
+                def _insert_orders():
+                    self.database[constants.TABLENAME_ORDERS].insert_many(list(self.w_orders.values()), ordered=False)
+                
+                self._retry_operation(_insert_orders, f"load denormalized orders for warehouse {w_id} district {d_id}")
             self.w_orders.clear()
         ## IF
 
@@ -528,6 +557,7 @@ class MongodbDriver(AbstractDriver):
 
     def loadFinish(self):
         logging.debug("Load finished")
+        self.cleanup()
 
     def executeStart(self):
         """Optional callback before the execution for each client starts"""
@@ -1239,6 +1269,25 @@ class MongodbDriver(AbstractDriver):
                 sleep(txn_retry_counter * .1)
                 logging.debug("txn retry number for %s: %d", name, txn_retry_counter)
             ## WHILE
+
+    def _retry_operation(self, operation_func, operation_name, max_retries=3):
+        """
+        Retry an operation with exponential backoff for network-related failures.
+        """
+        for attempt in range(max_retries):
+            try:
+                return operation_func()
+            except (pymongo.errors.AutoReconnect, 
+                    pymongo.errors.ConnectionFailure, 
+                    pymongo.errors.ServerSelectionTimeoutError) as e:
+                if attempt == max_retries - 1:
+                    logging.error("Final retry failed for %s: %s", operation_name, str(e))
+                    raise
+                else:
+                    delay = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                    logging.warning("Retry %d/%d for %s failed: %s. Retrying in %d seconds...", 
+                                  attempt + 1, max_retries, operation_name, str(e), delay)
+                    sleep(delay)
 
     def get_server_status(self):
         ss=self.client.admin.command('serverStatus')
