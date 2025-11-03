@@ -258,6 +258,7 @@ def executorFunc(driverClass, scaleParameters, args, config, debug):
     logging.debug("Starting client execution: %s", driver)
 
     config['execute'] = True
+    config['load'] = False  # Explicitly set load to False for execution phase
     config['reset'] = False
     driver.loadConfig(config)
 
@@ -334,8 +335,8 @@ if __name__ == '__main__':
         defaultConfig = driver.makeDefaultConfig()
         config = dict([(param, defaultConfig[param][1]) for param in defaultConfig.keys()])
     config['reset'] = args['reset']
-    config['load'] = False
-    config['execute'] = False
+    config['load'] = not args['no_load']    # True if loading, False if --no-load
+    config['execute'] = args['no_load']     # True if --no-load (execution only), False if loading
     if config['reset']:
         logging.info("Reseting database")
     config['warehouses'] = args['warehouses']

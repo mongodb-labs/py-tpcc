@@ -353,16 +353,17 @@ class MongodbDriver(AbstractDriver):
             ## IF
 
             ## whether should check for indexes
-            load_indexes = ('execute' in config and not config['execute']) and \
-                           ('load' in config and not config['load'])
+            # Indexes should only be created during loading phase, not execution phase
+            load_indexes = ('load' in config and config['load']) and \
+                           ('execute' in config and not config['execute'])
             
             logging.info("Index creation logic debug:")
             logging.info("  config['execute'] = %s", config.get('execute'))
             logging.info("  config['load'] = %s", config.get('load'))
+            logging.info("  ('load' in config and config['load']) = %s", 
+                        ('load' in config and config['load']))
             logging.info("  ('execute' in config and not config['execute']) = %s", 
                         ('execute' in config and not config['execute']))
-            logging.info("  ('load' in config and not config['load']) = %s", 
-                        ('load' in config and not config['load']))
             logging.info("  load_indexes = %s", load_indexes)
 
             for name in constants.ALL_TABLES:
