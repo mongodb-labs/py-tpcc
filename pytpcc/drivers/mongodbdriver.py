@@ -401,23 +401,31 @@ class MongodbDriver(AbstractDriver):
         
         admin.command('enableSharding', db_name)
         
+        logging.info("Sharding ITEM collection...")
         admin.command('shardCollection', f'{db_name}.ITEM', key={'I_W_ID': 1, 'I_ID': 1}, unique=True)
         
+        logging.info("Creating index and sharding WAREHOUSE collection...")
         db['WAREHOUSE'].create_index([('W_ID', 1), ('W_TAX', 1)], unique=True)
         admin.command('shardCollection', f'{db_name}.WAREHOUSE', key={'W_ID': 1})
         
+        logging.info("Creating index and sharding DISTRICT collection...")
         db['DISTRICT'].create_index([('D_W_ID', 1), ('D_ID', 1), ('D_NEXT_O_ID', 1), ('D_TAX', 1)], unique=True)
         admin.command('shardCollection', f'{db_name}.DISTRICT', key={'D_W_ID': 1, 'D_ID': 1})
         
+        logging.info("Sharding CUSTOMER collection...")
         admin.command('shardCollection', f'{db_name}.CUSTOMER', key={'C_W_ID': 1, 'C_D_ID': 1, 'C_ID': 1}, unique=True)
         
+        logging.info("Sharding HISTORY collection...")
         admin.command('shardCollection', f'{db_name}.HISTORY', key={'H_W_ID': 1})
         
+        logging.info("Sharding STOCK collection...")
         admin.command('shardCollection', f'{db_name}.STOCK', key={'S_W_ID': 1, 'S_I_ID': 1}, unique=True)
-        
+
+        logging.info("Creating index and sharding NEW_ORDER collection...")
         db['NEW_ORDER'].create_index([('NO_W_ID', 1), ('NO_D_ID', 1), ('NO_O_ID', 1)], unique=True)
         admin.command('shardCollection', f'{db_name}.NEW_ORDER', key={'NO_W_ID': 1, 'NO_D_ID': 1})
-        
+
+        logging.info("Creating index and sharding ORDERS collection...")
         db['ORDERS'].create_index([('O_W_ID', 1), ('O_D_ID', 1), ('O_ID', 1), ('O_C_ID', 1)], unique=True)
         admin.command('shardCollection', f'{db_name}.ORDERS', key={'O_W_ID': 1, 'O_D_ID': 1, 'O_ID': 1})
         
