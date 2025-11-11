@@ -137,6 +137,10 @@ def startLoading(driverClass, scaleParameters, args, config):
         warehouse_ids.append(w_id)
     assert len(warehouse_ids) == total_warehouses, "Mismatch in total warehouses and warehouse_ids length"
 
+    # Shuffle warehouse IDs to distribute load across shards (not tested yet)
+    # random.shuffle(warehouse_ids)
+    # logging.info(f"Shuffled {len(warehouse_ids)} warehouses for parallel loading across shards")
+
     # Iterate through warehouses, processing them in batches of 'clients'
     for i in range(len(warehouse_ids)):
         w_id = warehouse_ids[i]
@@ -187,7 +191,7 @@ def startLoading(driverClass, scaleParameters, args, config):
 def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
     # Add random delay (1-10 seconds) to prevent thundering herd when all clients connect simultaneously
     delay = random.uniform(1, 10)
-    logging.info("Client for warehouses %s: Delaying startup by %.2f seconds to stagger connections", w_ids, delay)
+    logging.debug("Client for warehouses %s: Delaying startup by %.2f seconds to stagger connections", w_ids, delay)
     time.sleep(delay)
 
 

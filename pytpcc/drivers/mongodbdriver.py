@@ -305,7 +305,6 @@ class MongodbDriver(AbstractDriver):
         real_uri = uri[0:pindex]+userpassword+uri[pindex:]
         display_uri = uri[0:pindex]+usersecret+uri[pindex:]
 
-        logging.info("About to create MongoDB client connection...")
         self.client = pymongo.MongoClient(real_uri,
                                           retryWrites=self.retry_writes,
                                           readPreference=self.read_preference,
@@ -313,21 +312,21 @@ class MongodbDriver(AbstractDriver):
                                           serverSelectionTimeoutMS=30000,  # 30 second timeout
                                           connectTimeoutMS=20000,          # 20 second connection timeout
                                           socketTimeoutMS=60000)           # 60 second socket timeout
-        logging.info("MongoDB client created successfully")
+        
 
         #self.result_doc['before']=self.get_server_status()
 
         # set default writeConcern on the database
-        logging.info("Getting database handle...")
+        
         self.database = self.client.get_database(name=str(config['name']), write_concern=self.write_concern)
-        logging.info("Database handle obtained successfully")
+        logging.debug("Database handle obtained successfully")
         if self.denormalize:
             logging.debug("Using denormalized data model")
 
         try:
             # Debug logging
-            logging.info("DEBUG: config['reset'] = %s, self.shards = %s, self.warehouses = %s", 
-                        config.get("reset"), self.shards, self.warehouses)
+            #logging.info("DEBUG: config['reset'] = %s, self.shards = %s, self.warehouses = %s", 
+            #            config.get("reset"), self.shards, self.warehouses)
             
             # Reset the current database and setup new dataase with sharded configuration
             if config["reset"] and self.shards > 0:
@@ -356,15 +355,6 @@ class MongodbDriver(AbstractDriver):
             # Indexes should only be created during loading phase, not execution phase
             load_indexes = ('load' in config and config['load']) and \
                            ('execute' in config and not config['execute'])
-            
-            logging.info("Index creation logic debug:")
-            logging.info("  config['execute'] = %s", config.get('execute'))
-            logging.info("  config['load'] = %s", config.get('load'))
-            logging.info("  ('load' in config and config['load']) = %s", 
-                        ('load' in config and config['load']))
-            logging.info("  ('execute' in config and not config['execute']) = %s", 
-                        ('execute' in config and not config['execute']))
-            logging.info("  load_indexes = %s", load_indexes)
 
             for name in constants.ALL_TABLES:
                 if self.denormalize and name == "ORDER_LINE":
