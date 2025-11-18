@@ -294,6 +294,10 @@ if __name__ == '__main__':
                          help='Percent paying same warehouse')
     aparser.add_argument('--warehouses', default=4, type=int, metavar='W',
                          help='Number of Warehouses')
+    aparser.add_argument('--starting-warehouse', default=None, type=int, metavar='SW',
+                         help='Starting warehouse ID for loading (optional, defaults to 1)')
+    aparser.add_argument('--ending-warehouse', default=None, type=int, metavar='EW',
+                         help='Ending warehouse ID for loading (optional, defaults to total warehouses)')
     aparser.add_argument('--duration', default=60, type=int, metavar='D',
                          help='How long to run the benchmark in seconds')
     aparser.add_argument('--ddl',
@@ -351,6 +355,25 @@ if __name__ == '__main__':
 
     ## Create ScaleParameters
     scaleParameters = scaleparameters.makeWithScaleFactor(args['warehouses'], args['scalefactor'])
+    
+    # Override starting and ending warehouses if specified
+    if args['starting_warehouse'] is not None:
+        scaleParameters.starting_warehouse = args['starting_warehouse']
+        logging.info("Using custom starting warehouse: %d", args['starting_warehouse'])
+    if args['ending_warehouse'] is not None:
+        scaleParameters.ending_warehouse = args['ending_warehouse']
+        logging.info("Using custom ending warehouse: %d", args['ending_warehouse'])
+    
+    # Validate warehouse range
+    if scaleParameters.starting_warehouse > scaleParameters.ending_warehouse:
+        logging.error("Starting warehouse (%d) cannot be greater than ending warehouse (%d)",
+                     scaleParameters.starting_warehouse, scaleParameters.ending_warehouse)
+        sys.exit(1)
+    
+    actual_warehouses = scaleParameters.ending_warehouse - scaleParameters.starting_warehouse + 1
+    logging.info("Loading warehouse range: %d to %d (total: %d warehouses)",
+                scaleParameters.starting_warehouse, scaleParameters.ending_warehouse, actual_warehouses)
+    
     if args['debug']:
         logging.debug("Scale Parameters:\n%s", scaleParameters)
 
