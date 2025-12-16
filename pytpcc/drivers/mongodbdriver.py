@@ -346,9 +346,10 @@ class MongodbDriver(AbstractDriver):
                     logging.info("Skipping sharding setup (starting_warehouse=%d > 1). Waiting 2 minutes for sharding to complete...", starting_warehouse)
                     sleep(120)  # Wait 2 minutes for the first instance to complete sharding
                     logging.info("Wait complete. Proceeding with data loading...")
-                    # Continue with normal initialization (don't return)
+                    # Continue with normal initialization (don't return, and skip database deletion)
             
-            if config["reset"]:
+            # Only reset database for non-sharded clusters or when starting_warehouse == 1
+            if config["reset"] and (self.shards == 0 or starting_warehouse == 1):
                 logging.info("Deleting database '%s'", self.database.name)
                 for name in constants.ALL_TABLES:
                     def _drop_collection():
