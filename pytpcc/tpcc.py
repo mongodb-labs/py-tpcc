@@ -344,6 +344,8 @@ if __name__ == '__main__':
     if config['reset']:
         logging.info("Reseting database")
     config['warehouses'] = args['warehouses']
+    # Pass starting_warehouse to config for sharding setup coordination
+    config['starting_warehouse'] = args.get('starting_warehouse', 1)
     driver.loadConfig(config)
     logging.info("Initializing TPC-C benchmark using %s", driver)
 

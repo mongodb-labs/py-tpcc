@@ -324,22 +324,29 @@ class MongodbDriver(AbstractDriver):
             logging.debug("Using denormalized data model")
 
         try:
-            # Debug logging
-            #logging.info("DEBUG: config['reset'] = %s, self.shards = %s, self.warehouses = %s", 
-            #            config.get("reset"), self.shards, self.warehouses)
+            # Get starting_warehouse from config (default to 1 if not set)
+            starting_warehouse = int(config.get('starting_warehouse', 1))
             
             # Reset the current database and setup new dataase with sharded configuration
+            # Only do this for the first instance (starting_warehouse == 1)
             if config["reset"] and self.shards > 0:
-                logging.info("Deleting the database and setting up a new sharded database '%s'", self.database.name)
-                try:
-                    def _setup_sharded():
-                        self.setup_sharded_db(self.client, str(config['name']), int(self.warehouses), self.shards)
-                    self._retry_operation(_setup_sharded, "setup sharded database")
-                    logging.info("Sharding setup completed successfully")
-                except Exception as e:
-                    logging.error("Failed to setup sharded database: %s", str(e))
-                    raise
-                return
+                if starting_warehouse == 1:
+                    logging.info("Deleting the database and setting up a new sharded database '%s'", self.database.name)
+                    try:
+                        def _setup_sharded():
+                            self.setup_sharded_db(self.client, str(config['name']), int(self.warehouses), self.shards)
+                        self._retry_operation(_setup_sharded, "setup sharded database")
+                        logging.info("Sharding setup completed successfully")
+                    except Exception as e:
+                        logging.error("Failed to setup sharded database: %s", str(e))
+                        raise
+                    return
+                else:
+                    # This is not the first instance, skip sharding setup and wait
+                    logging.info("Skipping sharding setup (starting_warehouse=%d > 1). Waiting 2 minutes for sharding to complete...", starting_warehouse)
+                    sleep(120)  # Wait 2 minutes for the first instance to complete sharding
+                    logging.info("Wait complete. Proceeding with data loading...")
+                    # Continue with normal initialization (don't return)
             
             if config["reset"]:
                 logging.info("Deleting database '%s'", self.database.name)
