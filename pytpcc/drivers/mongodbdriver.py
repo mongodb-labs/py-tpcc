@@ -324,8 +324,8 @@ class MongodbDriver(AbstractDriver):
             logging.debug("Using denormalized data model")
 
         try:
-            # Get starting_warehouse from config (default to 1 if not set)
-            starting_warehouse = int(config.get('starting_warehouse', 1))
+            # Get starting_warehouse from config (default to 1 if not set or None)
+            starting_warehouse = int(config.get('starting_warehouse') or 1)
             
             # Reset the current database and setup new dataase with sharded configuration
             # Only do this for the first instance (starting_warehouse == 1)
