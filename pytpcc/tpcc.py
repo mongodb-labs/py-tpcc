@@ -371,8 +371,12 @@ if __name__ == '__main__':
         sys.exit(1)
     
     actual_warehouses = scaleParameters.ending_warehouse - scaleParameters.starting_warehouse + 1
-    logging.info("Loading warehouse range: %d to %d (total: %d warehouses)",
-                scaleParameters.starting_warehouse, scaleParameters.ending_warehouse, actual_warehouses)
+    if not args['no_load']:
+        logging.info("Loading warehouse range: %d to %d (total: %d warehouses)",
+                    scaleParameters.starting_warehouse, scaleParameters.ending_warehouse, actual_warehouses)
+    else:
+        logging.info("Warehouse range for execution: %d to %d (total: %d warehouses)",
+                    scaleParameters.starting_warehouse, scaleParameters.ending_warehouse, actual_warehouses)
     
     if args['debug']:
         logging.debug("Scale Parameters:\n%s", scaleParameters)
