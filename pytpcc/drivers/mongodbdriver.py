@@ -305,13 +305,30 @@ class MongodbDriver(AbstractDriver):
         real_uri = uri[0:pindex]+userpassword+uri[pindex:]
         display_uri = uri[0:pindex]+usersecret+uri[pindex:]
 
-        self.client = pymongo.MongoClient(real_uri,
-                                          retryWrites=self.retry_writes,
-                                          readPreference=self.read_preference,
-                                          readConcernLevel=self.read_concern,
-                                          serverSelectionTimeoutMS=30000,  # 30 second timeout
-                                          connectTimeoutMS=20000,          # 20 second connection timeout
-                                          socketTimeoutMS=60000)           # 60 second socket timeout
+        # Retry MongoClient creation to handle DNS resolution failures when many workers connect simultaneously
+        max_retries = 10
+        for attempt in range(max_retries):
+            try:
+                self.client = pymongo.MongoClient(real_uri,
+                                                  retryWrites=self.retry_writes,
+                                                  readPreference=self.read_preference,
+                                                  readConcernLevel=self.read_concern,
+                                                  serverSelectionTimeoutMS=30000,  # 30 second timeout
+                                                  connectTimeoutMS=20000,          # 20 second connection timeout
+                                                  socketTimeoutMS=60000)           # 60 second socket timeout
+                logging.debug("MongoDB client connection established successfully")
+                break
+            except pymongo.errors.ConfigurationError as e:
+                error_msg = str(e).lower()
+                is_dns_error = 'nameserver' in error_msg or 'srv' in error_msg or 'dns' in error_msg or 'txt' in error_msg
+                if is_dns_error and attempt < max_retries - 1:
+                    delay = (attempt + 1) * 3  # 3s, 6s, 9s, 12s, 15s
+                    logging.warning("DNS resolution failed (attempt %d/%d): %s. Retrying in %d seconds...", 
+                                  attempt + 1, max_retries, str(e)[:200], delay)
+                    sleep(delay)
+                else:
+                    logging.error("Failed to create MongoDB client after %d attempts: %s", attempt + 1, str(e))
+                    raise
         
 
         #self.result_doc['before']=self.get_server_status()
@@ -1246,8 +1263,9 @@ class MongodbDriver(AbstractDriver):
             print("Failed with unknown OperationFailure: %d" % exc.code)
             print(exc.details)
             raise
-        except pymongo.errors.ConnectionFailure:
-            print("ConnectionFailure during %s: " % name)
+        except pymongo.errors.ConnectionFailure as exc:
+            logging.warning("ConnectionFailure during %s: %s", name, str(exc))
+            print("ConnectionFailure during %s: %s" % (name, str(exc)))
             return (False, None)
         ## TRY
 
