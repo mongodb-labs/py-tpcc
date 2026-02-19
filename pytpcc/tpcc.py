@@ -119,31 +119,10 @@ def startLoading(driverClass, scaleParameters, args, config):
     logging.debug(f"Total warehouses: {total_warehouses}")
 
     loader_results = []
-    warehouse_ids = []
-    block_size = total_warehouses // clients
-
-    if(total_warehouses % clients != 0):
-       logging.warning(f"WARNING: clients and warehouses are not well aligned {total_warehouses % clients} warehouses will be processed sequentially")
-
-    ideal_ending_warehouse = scaleParameters.starting_warehouse + block_size * clients
-    # create an array of warehouse IDs to 
-    for i in range(block_size):
-        for w_id in range(scaleParameters.starting_warehouse + i, ideal_ending_warehouse, block_size):
-            logging.debug(f"adding warehouse {w_id} to warehouse_ids")
-            warehouse_ids.append(w_id)
-    # let's add all warehouses that are left
-    for w_id in range(ideal_ending_warehouse, scaleParameters.ending_warehouse + 1):
-        logging.debug(f"adding remaining warehouse {w_id} to warehouse_ids")
-        warehouse_ids.append(w_id)
-    assert len(warehouse_ids) == total_warehouses, "Mismatch in total warehouses and warehouse_ids length"
-
-    # Shuffle warehouse IDs to distribute load across shards (not tested yet)
-    # random.shuffle(warehouse_ids)
-    # logging.info(f"Shuffled {len(warehouse_ids)} warehouses for parallel loading across shards")
 
     # Iterate through warehouses, processing them in batches of 'clients'
-    for i in range(len(warehouse_ids)):
-        w_id = warehouse_ids[i]
+    for i in range(total_warehouses):
+        w_id = scaleParameters.starting_warehouse + i
         logging.debug(f"Processing warehouse {w_id} in batch {i // clients}")
 
         # Apply the loader function asynchronously for the current warehouse
@@ -189,12 +168,6 @@ def startLoading(driverClass, scaleParameters, args, config):
 ## loaderFunc
 ## ==============================================
 def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
-    # Add random delay (1-10 seconds) to prevent thundering herd when all clients connect simultaneously
-    delay = random.uniform(1, 10)
-    logging.debug("Client for warehouses %s: Delaying startup by %.2f seconds to stagger connections", w_ids, delay)
-    time.sleep(delay)
-
-
     driver = driverClass(args['ddl'])
     assert driver != None, "Driver in loadFunc is none!"
     logging.debug("Starting client execution: %s [warehouses=%d]", driver, len(w_ids))
@@ -216,11 +189,6 @@ def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
     except (Exception, AssertionError) as ex:
         logging.warn("Failed to load data: %s", ex)
         raise
-    finally:
-        # Ensure MongoDB client connection is properly closed
-        if hasattr(driver, 'cleanup'):
-            driver.cleanup()
-
 
 ## DEF
 
@@ -262,7 +230,6 @@ def executorFunc(driverClass, scaleParameters, args, config, debug):
     logging.debug("Starting client execution: %s", driver)
 
     config['execute'] = True
-    config['load'] = False  # Explicitly set load to False for execution phase
     config['reset'] = False
     driver.loadConfig(config)
 
@@ -270,9 +237,6 @@ def executorFunc(driverClass, scaleParameters, args, config, debug):
     driver.executeStart()
     results = e.execute(args['duration'])
     driver.executeFinish()
-    # Ensure MongoDB client connection is properly closed
-    if hasattr(driver, 'cleanup'):
-        driver.cleanup()
 
     return results
 ## DEF
@@ -294,10 +258,6 @@ if __name__ == '__main__':
                          help='Percent paying same warehouse')
     aparser.add_argument('--warehouses', default=4, type=int, metavar='W',
                          help='Number of Warehouses')
-    aparser.add_argument('--starting-warehouse', default=None, type=int, metavar='SW',
-                         help='Starting warehouse ID for loading (optional, defaults to 1)')
-    aparser.add_argument('--ending-warehouse', default=None, type=int, metavar='EW',
-                         help='Ending warehouse ID for loading (optional, defaults to total warehouses)')
     aparser.add_argument('--duration', default=60, type=int, metavar='D',
                          help='How long to run the benchmark in seconds')
     aparser.add_argument('--ddl',
@@ -343,41 +303,16 @@ if __name__ == '__main__':
         defaultConfig = driver.makeDefaultConfig()
         config = dict([(param, defaultConfig[param][1]) for param in defaultConfig.keys()])
     config['reset'] = args['reset']
-    config['load'] = not args['no_load']    # True if loading, False if --no-load
-    config['execute'] = args['no_load']     # True if --no-load (execution only), False if loading
+    config['load'] = False
+    config['execute'] = False
     if config['reset']:
         logging.info("Reseting database")
     config['warehouses'] = args['warehouses']
-    # Pass starting_warehouse to config for sharding setup coordination
-    config['starting_warehouse'] = args.get('starting_warehouse', 1)
     driver.loadConfig(config)
     logging.info("Initializing TPC-C benchmark using %s", driver)
 
     ## Create ScaleParameters
     scaleParameters = scaleparameters.makeWithScaleFactor(args['warehouses'], args['scalefactor'])
-    
-    # Override starting and ending warehouses if specified
-    if args['starting_warehouse'] is not None:
-        scaleParameters.starting_warehouse = args['starting_warehouse']
-        logging.info("Using custom starting warehouse: %d", args['starting_warehouse'])
-    if args['ending_warehouse'] is not None:
-        scaleParameters.ending_warehouse = args['ending_warehouse']
-        logging.info("Using custom ending warehouse: %d", args['ending_warehouse'])
-    
-    # Validate warehouse range
-    if scaleParameters.starting_warehouse > scaleParameters.ending_warehouse:
-        logging.error("Starting warehouse (%d) cannot be greater than ending warehouse (%d)",
-                     scaleParameters.starting_warehouse, scaleParameters.ending_warehouse)
-        sys.exit(1)
-    
-    actual_warehouses = scaleParameters.ending_warehouse - scaleParameters.starting_warehouse + 1
-    if not args['no_load']:
-        logging.info("Loading warehouse range: %d to %d (total: %d warehouses)",
-                    scaleParameters.starting_warehouse, scaleParameters.ending_warehouse, actual_warehouses)
-    else:
-        logging.info("Warehouse range for execution: %d to %d (total: %d warehouses)",
-                    scaleParameters.starting_warehouse, scaleParameters.ending_warehouse, actual_warehouses)
-    
     if args['debug']:
         logging.debug("Scale Parameters:\n%s", scaleParameters)
 

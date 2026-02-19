@@ -305,81 +305,36 @@ class MongodbDriver(AbstractDriver):
         real_uri = uri[0:pindex]+userpassword+uri[pindex:]
         display_uri = uri[0:pindex]+usersecret+uri[pindex:]
 
-        # Retry MongoClient creation to handle DNS resolution failures when many workers connect simultaneously
-        max_retries = 10
-        for attempt in range(max_retries):
-            try:
-                self.client = pymongo.MongoClient(real_uri,
-                                                  retryWrites=self.retry_writes,
-                                                  readPreference=self.read_preference,
-                                                  readConcernLevel=self.read_concern,
-                                                  serverSelectionTimeoutMS=30000,  # 30 second timeout
-                                                  connectTimeoutMS=20000,          # 20 second connection timeout
-                                                  socketTimeoutMS=60000)           # 60 second socket timeout
-                logging.debug("MongoDB client connection established successfully")
-                break
-            except pymongo.errors.ConfigurationError as e:
-                error_msg = str(e).lower()
-                is_dns_error = 'nameserver' in error_msg or 'srv' in error_msg or 'dns' in error_msg or 'txt' in error_msg
-                if is_dns_error and attempt < max_retries - 1:
-                    delay = (attempt + 1) * 3  # 3s, 6s, 9s, 12s, 15s
-                    logging.warning("DNS resolution failed (attempt %d/%d): %s. Retrying in %d seconds...", 
-                                  attempt + 1, max_retries, str(e)[:200], delay)
-                    sleep(delay)
-                else:
-                    logging.error("Failed to create MongoDB client after %d attempts: %s", attempt + 1, str(e))
-                    raise
-        
+        self.client = pymongo.MongoClient(real_uri,
+                                          retryWrites=self.retry_writes,
+                                          readPreference=self.read_preference,
+                                          readConcernLevel=self.read_concern)
 
-        #self.result_doc['before']=self.get_server_status()
+        self.result_doc['before']=self.get_server_status()
 
         # set default writeConcern on the database
-        
         self.database = self.client.get_database(name=str(config['name']), write_concern=self.write_concern)
-        logging.debug("Database handle obtained successfully")
         if self.denormalize:
             logging.debug("Using denormalized data model")
 
         try:
-            # Get starting_warehouse from config (default to 1 if not set or None)
-            starting_warehouse = int(config.get('starting_warehouse') or 1)
-            
             # Reset the current database and setup new dataase with sharded configuration
-            # Only do this for the first instance (starting_warehouse == 1)
             if config["reset"] and self.shards > 0:
-                if starting_warehouse == 1:
-                    logging.info("Deleting the database and setting up a new sharded database '%s'", self.database.name)
-                    try:
-                        def _setup_sharded():
-                            self.setup_sharded_db(self.client, str(config['name']), int(self.warehouses), self.shards)
-                        self._retry_operation(_setup_sharded, "setup sharded database")
-                        logging.info("Sharding setup completed successfully")
-                    except Exception as e:
-                        logging.error("Failed to setup sharded database: %s", str(e))
-                        raise
-                    return
-                else:
-                    # This is not the first instance, skip sharding setup and wait
-                    logging.info("Skipping sharding setup (starting_warehouse=%d > 1). Waiting 2 minutes for sharding to complete...", starting_warehouse)
-                    sleep(120)  # Wait 2 minutes for the first instance to complete sharding
-                    logging.info("Wait complete. Proceeding with data loading...")
-                    # Continue with normal initialization (don't return, and skip database deletion)
+                logging.info("Deleting the database and setting up a new sharded database '%s'", self.database.name)
+                self.setup_sharded_db(self.client, str(config['name']), int(self.warehouses), self.shards)
+                return
             
-            # Only reset database for non-sharded clusters or when starting_warehouse == 1
-            if config["reset"] and (self.shards == 0 or starting_warehouse == 1):
+            if config["reset"]:
                 logging.info("Deleting database '%s'", self.database.name)
                 for name in constants.ALL_TABLES:
-                    def _drop_collection():
-                        self.database[name].drop()
-                    self._retry_operation(_drop_collection, f"drop collection {name}")
+                    self.database[name].drop()
                     logging.debug("Dropped collection %s", name)
                 ## FOR
             ## IF
 
             ## whether should check for indexes
-            # Indexes should only be created during loading phase, not execution phase
-            load_indexes = ('load' in config and config['load']) and \
-                           ('execute' in config and not config['execute'])
+            load_indexes = ('execute' in config and not config['execute']) and \
+                           ('load' in config and not config['load'])
 
             for name in constants.ALL_TABLES:
                 if self.denormalize and name == "ORDER_LINE":
@@ -388,9 +343,7 @@ class MongodbDriver(AbstractDriver):
                 if load_indexes and name in TABLE_INDEXES:
                     uniq = True
                     for index in TABLE_INDEXES[name]:
-                        def _create_index():
-                            self.database[name].create_index(index, unique=uniq)
-                        self._retry_operation(_create_index, f"create index for {name}")
+                        self.database[name].create_index(index, unique=uniq)
                         uniq = False
                 ## IF
             ## FOR
@@ -426,31 +379,23 @@ class MongodbDriver(AbstractDriver):
         
         admin.command('enableSharding', db_name)
         
-        logging.info("Sharding ITEM collection...")
         admin.command('shardCollection', f'{db_name}.ITEM', key={'I_W_ID': 1, 'I_ID': 1}, unique=True)
         
-        logging.info("Creating index and sharding WAREHOUSE collection...")
         db['WAREHOUSE'].create_index([('W_ID', 1), ('W_TAX', 1)], unique=True)
         admin.command('shardCollection', f'{db_name}.WAREHOUSE', key={'W_ID': 1})
         
-        logging.info("Creating index and sharding DISTRICT collection...")
         db['DISTRICT'].create_index([('D_W_ID', 1), ('D_ID', 1), ('D_NEXT_O_ID', 1), ('D_TAX', 1)], unique=True)
         admin.command('shardCollection', f'{db_name}.DISTRICT', key={'D_W_ID': 1, 'D_ID': 1})
         
-        logging.info("Sharding CUSTOMER collection...")
         admin.command('shardCollection', f'{db_name}.CUSTOMER', key={'C_W_ID': 1, 'C_D_ID': 1, 'C_ID': 1}, unique=True)
         
-        logging.info("Sharding HISTORY collection...")
         admin.command('shardCollection', f'{db_name}.HISTORY', key={'H_W_ID': 1})
         
-        logging.info("Sharding STOCK collection...")
         admin.command('shardCollection', f'{db_name}.STOCK', key={'S_W_ID': 1, 'S_I_ID': 1}, unique=True)
-
-        logging.info("Creating index and sharding NEW_ORDER collection...")
+        
         db['NEW_ORDER'].create_index([('NO_W_ID', 1), ('NO_D_ID', 1), ('NO_O_ID', 1)], unique=True)
         admin.command('shardCollection', f'{db_name}.NEW_ORDER', key={'NO_W_ID': 1, 'NO_D_ID': 1})
-
-        logging.info("Creating index and sharding ORDERS collection...")
+        
         db['ORDERS'].create_index([('O_W_ID', 1), ('O_D_ID', 1), ('O_ID', 1), ('O_C_ID', 1)], unique=True)
         admin.command('shardCollection', f'{db_name}.ORDERS', key={'O_W_ID': 1, 'O_D_ID': 1, 'O_ID': 1})
         
@@ -553,10 +498,7 @@ class MongodbDriver(AbstractDriver):
                 tuple_dicts.append(dict([(columns[i], t[i]) for i in num_columns]))
             ## FOR
 
-            def _insert_tuples():
-                self.database[tableName].insert_many(tuple_dicts, ordered=False)
-            
-            self._retry_operation(_insert_tuples, f"load tuples for {tableName}")
+            self.database[tableName].insert_many(tuple_dicts, ordered=False)
         ## IF
 
         return
@@ -564,24 +506,12 @@ class MongodbDriver(AbstractDriver):
     def loadFinishDistrict(self, w_id, d_id):
         if self.denormalize:
             logging.debug("Pushing %d denormalized ORDERS records for WAREHOUSE %d DISTRICT %d into MongoDB", len(self.w_orders), w_id, d_id)
-            if self.w_orders:  # Safety guard against empty collections
-                def _insert_orders():
-                    self.database[constants.TABLENAME_ORDERS].insert_many(list(self.w_orders.values()), ordered=False)
-                
-                self._retry_operation(_insert_orders, f"load denormalized orders for warehouse {w_id} district {d_id}")
+            self.database[constants.TABLENAME_ORDERS].insert_many(self.w_orders.values(), ordered=False)
             self.w_orders.clear()
         ## IF
 
-    def cleanup(self):
-        """Close MongoDB client connection to free resources"""
-        if self.client:
-            logging.debug("Closing MongoDB client connection")
-            self.client.close()
-            self.client = None
-
     def loadFinish(self):
         logging.debug("Load finished")
-        self.cleanup()
 
     def executeStart(self):
         """Optional callback before the execution for each client starts"""
@@ -1263,9 +1193,8 @@ class MongodbDriver(AbstractDriver):
             print("Failed with unknown OperationFailure: %d" % exc.code)
             print(exc.details)
             raise
-        except pymongo.errors.ConnectionFailure as exc:
-            logging.warning("ConnectionFailure during %s: %s", name, str(exc))
-            print("ConnectionFailure during %s: %s" % (name, str(exc)))
+        except pymongo.errors.ConnectionFailure:
+            print("ConnectionFailure during %s: " % name)
             return (False, None)
         ## TRY
 
@@ -1295,25 +1224,6 @@ class MongodbDriver(AbstractDriver):
                 logging.debug("txn retry number for %s: %d", name, txn_retry_counter)
             ## WHILE
 
-    def _retry_operation(self, operation_func, operation_name, max_retries=3):
-        """
-        Retry an operation with exponential backoff for network-related failures.
-        """
-        for attempt in range(max_retries):
-            try:
-                return operation_func()
-            except (pymongo.errors.AutoReconnect, 
-                    pymongo.errors.ConnectionFailure, 
-                    pymongo.errors.ServerSelectionTimeoutError) as e:
-                if attempt == max_retries - 1:
-                    logging.error("Final retry failed for %s: %s", operation_name, str(e))
-                    raise
-                else:
-                    delay = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
-                    logging.warning("Retry %d/%d for %s failed: %s. Retrying in %d seconds...", 
-                                  attempt + 1, max_retries, operation_name, str(e), delay)
-                    sleep(delay)
-
     def get_server_status(self):
         ss=self.client.admin.command('serverStatus')
         if "$configServerState" in ss:
@@ -1334,7 +1244,7 @@ class MongodbDriver(AbstractDriver):
 
     def save_result(self, result_doc):
         self.result_doc.update(result_doc)
-        #self.result_doc['after']=self.get_server_status()
+        self.result_doc['after']=self.get_server_status()
         # saving test results and server statuses ('before' and 'after') into MongoDB as a single document
         self.client.test.results.insert_one(self.result_doc)
 
