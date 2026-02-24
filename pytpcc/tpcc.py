@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # -----------------------------------------------------------------------
 # Copyright (C) 2011
 # Andy Pavlo
@@ -344,7 +343,7 @@ if __name__ == '__main__':
         config = dict([(param, defaultConfig[param][1]) for param in defaultConfig.keys()])
     config['reset'] = args['reset']
     config['load'] = not args['no_load']    # True if loading, False if --no-load
-    config['execute'] = args['no_load']     # True if --no-load (execution only), False if loading
+    config['execute'] = False
     if config['reset']:
         logging.info("Reseting database")
     config['warehouses'] = args['warehouses']
