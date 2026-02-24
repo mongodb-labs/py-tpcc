@@ -581,7 +581,6 @@ class MongodbDriver(AbstractDriver):
 
     def loadFinish(self):
         logging.debug("Load finished")
-        self.cleanup()
 
     def executeStart(self):
         """Optional callback before the execution for each client starts"""
