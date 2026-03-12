@@ -211,7 +211,6 @@ class MongodbDriver(AbstractDriver):
         constants.TABLENAME_ORDER_LINE
     ]
 
-
     def __init__(self, ddl):
         super(MongodbDriver, self).__init__("mongodb", ddl)
         self.no_transactions = False
@@ -331,7 +330,7 @@ class MongodbDriver(AbstractDriver):
                     raise
         
 
-        #self.result_doc['before']=self.get_server_status()
+        self.result_doc['before']=self.get_server_status()
 
         # set default writeConcern on the database
         
@@ -1267,9 +1266,9 @@ class MongodbDriver(AbstractDriver):
             print("ConnectionFailure during %s: %s" % (name, str(exc)))
             return (False, None)
         ## TRY
-
-    # Should we retry txns within the same session or start a new one?
+    
     def run_transaction_with_retries(self, txn_callback, name, params):
+        MAX_TXN_RETRIES = 100 # 8.5 minutes of retries with exponential backoff starting at .1 seconds
         txn_retry_counter = 0
         to = TransactionOptions(
             read_concern=None,
@@ -1278,7 +1277,7 @@ class MongodbDriver(AbstractDriver):
             read_preference=pymongo.read_preferences.Primary())
         with self.client.start_session(default_transaction_options=to,
                                        causal_consistency=self.causal_consistency) as s:
-            while True:
+            while txn_retry_counter < MAX_TXN_RETRIES: # max 100 retries to prevent endless loops
                 (ok, value) = self.run_transaction(txn_callback, s, name, params)
                 if ok:
                     if txn_retry_counter > 0:
@@ -1293,6 +1292,8 @@ class MongodbDriver(AbstractDriver):
                 sleep(txn_retry_counter * .1)
                 logging.debug("txn retry number for %s: %d", name, txn_retry_counter)
             ## WHILE
+            logging.error("Transaction %s failed after %d retries", name, MAX_TXN_RETRIES)
+            raise Exception("Transaction %s failed after %d retries" % (name, MAX_TXN_RETRIES))
 
     def _retry_operation(self, operation_func, operation_name, max_retries=3):
         """
