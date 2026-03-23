@@ -1062,7 +1062,7 @@ class MongodbDriver(AbstractDriver):
                                        session=s)
             assert d, "Couldn't find district in payment w_id %d d_id %d" % (w_id, d_id)
             # updateDistrictBalance
-            self.district.update_one({"_id": d["_id"], "$comment": comment},
+            self.district.update_one({"D_W_ID": w_id, "D_ID": d_id, "$comment": comment},
                                      {"$inc": {"D_YTD": h_amount}}, session=s)
         ## IF
 
@@ -1085,7 +1085,7 @@ class MongodbDriver(AbstractDriver):
                                         session=s)
             assert w, "Couldn't find warehouse in payment w_id %d" % (w_id)
             # updateWarehouseBalance
-            self.warehouse.update_one({"_id": w["_id"], "$comment": comment},
+            self.warehouse.update_one({"W_ID": w_id, "$comment": comment},
                                       {"$inc": {"W_YTD": h_amount}},
                                       session=s)
         ## IF
@@ -1138,7 +1138,7 @@ class MongodbDriver(AbstractDriver):
              "H_DATA": h_data}
 
         # updateCustomer
-        self.customer.update_one({"_id": c["_id"], "$comment": comment}, customer_update, session=s)
+        self.customer.update_one({"C_W_ID": c_w_id, "C_D_ID": c_d_id, "C_ID": c_id, "$comment": comment}, customer_update, session=s)
 
         # insertHistory
         self.history.insert_one(h, session=s)
