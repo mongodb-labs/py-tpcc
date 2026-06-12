@@ -196,6 +196,11 @@ def startLoading(driverClass, scaleParameters, args, config):
 ## loaderFunc
 ## ==============================================
 def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
+    if not getattr(driverClass, 'THREAD_SAFE', False):
+        delay = random.uniform(1, 10)
+        logging.debug("Client for warehouses %s: Delaying startup by %.2f seconds to stagger connections", w_ids, delay)
+        time.sleep(delay)
+
     driver = driverClass(args['ddl'])
     assert driver != None, "Driver in loadFunc is none!"
     logging.debug("Starting client execution: %s [warehouses=%d]", driver, len(w_ids))
