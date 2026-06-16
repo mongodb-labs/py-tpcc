@@ -197,6 +197,7 @@ def startLoading(driverClass, scaleParameters, args, config):
 ## ==============================================
 def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
     if not getattr(driverClass, 'THREAD_SAFE', False):
+        # Add random delay (1-10 seconds) to prevent thundering herd when all clients connect simultaneously
         delay = random.uniform(1, 10)
         logging.debug("Client for warehouses %s: Delaying startup by %.2f seconds to stagger connections", w_ids, delay)
         time.sleep(delay)
@@ -246,6 +247,7 @@ def startExecution(driverClass, scaleParameters, args, config):
         else:
             r = pool.apply_async(executorFunc, (driverClass, scaleParameters, args, config, debug,))
         worker_results.append(r)
+    ## FOR
 
     if use_threads:
         pool.shutdown(wait=True)
@@ -262,6 +264,7 @@ def startExecution(driverClass, scaleParameters, args, config):
         if r == -1:
             sys.exit(1)
         total_results.append(r)
+    ## FOR
 
     return total_results
 ## DEF
