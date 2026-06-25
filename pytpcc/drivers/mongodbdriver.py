@@ -262,16 +262,16 @@ class MongodbDriver(AbstractDriver):
                 config[key] = str(MongodbDriver.DEFAULT_CONFIG[key][1])
 
         logging.debug("Default plus our config %s", pformat(config))
-        self.denormalize = config['denormalize'] == 'True'
-        self.no_transactions = config['notransactions'] == 'True'
+        self.denormalize = config['denormalize'].lower() == 'true'
+        self.no_transactions = config['notransactions'].lower() == 'true'
         self.shards = int(config['shards'])
         self.warehouses = config['warehouses']
-        self.find_and_modify = config['findandmodify'] == 'True'
-        self.causal_consistency = config['causal_consistency'] == 'True'
-        self.no_global_items = config['no_global_items'] == 'True'
-        self.retry_writes = config['retry_writes'] == 'True'
-        self.secondary_reads = config['secondary_reads'] == 'True'
-        self.agg = config['agg'] == 'True'
+        self.find_and_modify = config['findandmodify'].lower() == 'true'
+        self.causal_consistency = config['causal_consistency'].lower() == 'true'
+        self.no_global_items = config['no_global_items'].lower() == 'true'
+        self.retry_writes = config['retry_writes'].lower() == 'true'
+        self.secondary_reads = config['secondary_reads'].lower() == 'true'
+        self.agg = config['agg'].lower() == 'true'
 
         if self.secondary_reads:
             self.read_preference = "nearest"
