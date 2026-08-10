@@ -1336,6 +1336,11 @@ class MongodbDriver(AbstractDriver):
         self.result_doc.update(result_doc)
         #self.result_doc['after']=self.get_server_status()
         # saving test results and server statuses ('before' and 'after') into MongoDB as a single document
-        self.client.test.results.insert_one(self.result_doc)
+        try:
+            self.client.test.results.insert_one(self.result_doc)
+        except pymongo.errors.PyMongoError as ex:
+            logging.warning(
+                "Failed to save benchmark result to MongoDB: %s (code=%s): %s",
+                type(ex).__name__, getattr(ex, "code", None), ex)
 
 ## CLASS
