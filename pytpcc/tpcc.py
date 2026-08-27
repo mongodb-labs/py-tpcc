@@ -34,6 +34,7 @@ import argparse
 import glob
 import time
 import multiprocessing
+from concurrent.futures import ThreadPoolExecutor
 import subprocess
 import random
 from configparser import ConfigParser
@@ -110,8 +111,9 @@ def startLoading(driverClass, scaleParameters, args, config):
     consists of 'clients' number of workers, each handling one warehouse.
     """
     clients = args['clients']
-    logging.debug("Creating client pool with %d processes", clients)
-    pool = multiprocessing.Pool(clients)
+    use_threads = getattr(driverClass, 'THREAD_SAFE', False)
+    logging.debug("Creating client pool with %d %s", clients, "threads" if use_threads else "processes")
+    pool = ThreadPoolExecutor(max_workers=clients) if use_threads else multiprocessing.Pool(clients)
 
     # Calculate total number of warehouses
     total_warehouses = scaleParameters.ending_warehouse - scaleParameters.starting_warehouse + 1
@@ -146,7 +148,10 @@ def startLoading(driverClass, scaleParameters, args, config):
         logging.debug(f"Processing warehouse {w_id} in batch {i // clients}")
 
         # Apply the loader function asynchronously for the current warehouse
-        r = pool.apply_async(loaderFunc, (driverClass, scaleParameters, args, config, [w_id]))
+        if use_threads:
+            r = pool.submit(loaderFunc, driverClass, scaleParameters, args, config, [w_id])
+        else:
+            r = pool.apply_async(loaderFunc, (driverClass, scaleParameters, args, config, [w_id]))
         loader_results.append(r)
 
         # If we've launched 'clients' workers, wait for them to complete before launching the next batch
@@ -154,7 +159,7 @@ def startLoading(driverClass, scaleParameters, args, config):
             logging.debug(f"Waiting for batch {i // clients} to complete")
             for r in loader_results:
                 try:
-                    error_message = r.get()
+                    error_message = r.result() if use_threads else r.get()
                     if error_message:
                         logging.error(f"Worker process reported error: {error_message}")
                         raise RuntimeError(f"Failed to process batch: {error_message}")
@@ -170,7 +175,7 @@ def startLoading(driverClass, scaleParameters, args, config):
         logging.debug("Waiting for the final batch to complete")
         for r in loader_results:
             try:
-                error_message = r.get()
+                error_message = r.result() if use_threads else r.get()
                 if error_message:
                     logging.error(f"Worker process reported error: {error_message}")
                     raise RuntimeError(f"Failed to process final batch: {error_message}")
@@ -178,9 +183,12 @@ def startLoading(driverClass, scaleParameters, args, config):
                 logging.error(f"Exception raised by worker process: {e}")
                 raise
 
-    pool.close()
-    logging.debug("Waiting for all loaders to finish")
-    pool.join()
+    if use_threads:
+        pool.shutdown(wait=True)
+    else:
+        pool.close()
+        logging.debug("Waiting for all loaders to finish")
+        pool.join()
     logging.info("All loading complete")
 ## DEF
 
@@ -188,11 +196,11 @@ def startLoading(driverClass, scaleParameters, args, config):
 ## loaderFunc
 ## ==============================================
 def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
-    # Add random delay (1-10 seconds) to prevent thundering herd when all clients connect simultaneously
-    delay = random.uniform(1, 10)
-    logging.debug("Client for warehouses %s: Delaying startup by %.2f seconds to stagger connections", w_ids, delay)
-    time.sleep(delay)
-
+    if not getattr(driverClass, 'THREAD_SAFE', False):
+        # Add random delay (1-10 seconds) to prevent thundering herd when all clients connect simultaneously
+        delay = random.uniform(1, 10)
+        logging.debug("Client for warehouses %s: Delaying startup by %.2f seconds to stagger connections", w_ids, delay)
+        time.sleep(delay)
 
     driver = driverClass(args['ddl'])
     assert driver != None, "Driver in loadFunc is none!"
@@ -227,22 +235,31 @@ def loaderFunc(driverClass, scaleParameters, args, config, w_ids):
 ## startExecution
 ## ==============================================
 def startExecution(driverClass, scaleParameters, args, config):
-    logging.debug("Creating client pool with %d processes", args['clients'])
-    pool = multiprocessing.Pool(args['clients'])
+    use_threads = getattr(driverClass, 'THREAD_SAFE', False)
+    logging.debug("Creating client pool with %d %s", args['clients'], "threads" if use_threads else "processes")
+    pool = ThreadPoolExecutor(max_workers=args['clients']) if use_threads else multiprocessing.Pool(args['clients'])
     debug = logging.getLogger().isEnabledFor(logging.DEBUG)
 
     worker_results = []
     for _ in range(args['clients']):
-        r = pool.apply_async(executorFunc, (driverClass, scaleParameters, args, config, debug,))
+        if use_threads:
+            r = pool.submit(executorFunc, driverClass, scaleParameters, args, config, debug)
+        else:
+            r = pool.apply_async(executorFunc, (driverClass, scaleParameters, args, config, debug,))
         worker_results.append(r)
     ## FOR
-    pool.close()
-    pool.join()
+
+    if use_threads:
+        pool.shutdown(wait=True)
+    else:
+        pool.close()
+        pool.join()
 
     total_results = results.Results()
     for asyncr in worker_results:
-        asyncr.wait()
-        r = asyncr.get()
+        if not use_threads:
+            asyncr.wait()
+        r = asyncr.result() if use_threads else asyncr.get()
         assert r != None, "No results object returned by thread!"
         if r == -1:
             sys.exit(1)
