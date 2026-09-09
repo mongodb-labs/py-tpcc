@@ -954,7 +954,6 @@ class MongodbDriver(AbstractDriver):
     ## doOrderStatus
     ## ----------------------------------------------
     def doOrderStatus(self, params):
-        (value, retries) = self.run_transaction_with_retries(self._doOrderStatusTxn, "ORDER_STATUS", params)
         return (self._doOrderStatusTxn(None, params), 0)
 
     def _doOrderStatusTxn(self, s, params):
