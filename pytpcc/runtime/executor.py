@@ -70,12 +70,18 @@ class Executor:
             except KeyboardInterrupt:
                 return -1
             except (Exception, AssertionError) as ex:
+                # One line per rejected/failed transaction. A full traceback per
+                # failure floods stdout under error storms (e.g. Atlas ingress
+                # rate-limit rejection bursts, code 462); the volume wedged the
+                # SSH channel pipe and hung every pool worker in pipe_write
+                # (BF-46197). The one-line warning already carries the driver
+                # error string. Print the traceback only when aborting the run.
                 logging.warn("Failed to execute Transaction '%s': %s" % (txn, ex))
-                traceback.print_exc(file=sys.stdout)
-                print("Aborting some transaction with some error %s %s" % (txn, ex))
                 global_result.abortTransaction(global_txn_id)
                 batch_result.abortTransaction(batch_txn_id)
-                if self.stop_on_error: raise
+                if self.stop_on_error:
+                    traceback.print_exc(file=sys.stdout)
+                    raise
                 continue
 
             if val is None:
